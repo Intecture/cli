@@ -1,25 +1,35 @@
-pub static VALID_LANGUAGES: [Language; 2] = [
+pub static VALID_LANGUAGES: [Language; 4] = [
+    Language {
+        name: "rust",
+        artifact: "target/debug/hello_world",
+        runtime: None,
+        example_repo: "https://github.com/betweenlines/intecture-example-rust.git",
+    },
+    Language {
+        name: "c",
+        artifact: "hello_world",
+        runtime: None,
+        example_repo: "https://github.com/betweenlines/intecture-example-c.git",
+    },
     Language {
         name: "php",
-        extension: "php",
-        runtime: "php",
-        bootstrap: "<?php
-
-echo 'Hello world!';",
+        artifact: "bootstrap.php",
+        runtime: Some("php"),
+        example_repo: "https://github.com/betweenlines/intecture-example-php.git",
     },
     Language {
         name: "ruby",
-        extension: "rb",
-        runtime: "ruby",
-        bootstrap: "puts \"Hello world!\";",
+        artifact: "bootstrap.rb",
+        runtime: Some("ruby"),
+        example_repo: "https://github.com/betweenlines/intecture-example-ruby.git",
     },
 ];
 
 pub struct Language {
     pub name: &'static str,
-    pub extension: &'static str,
-    pub runtime: &'static str,
-    pub bootstrap: &'static str,
+    pub artifact: &'static str,
+    pub runtime: Option<&'static str>,
+    pub example_repo: &'static str,
 }
 
 impl Language {

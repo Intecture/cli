@@ -2,14 +2,13 @@ use config::{Config, ConfigError};
 use config::project::ProjectConf;
 use language::Language;
 use std::{env, fs, io};
-use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 
 pub struct Project {
     pub name: String,
     pub language: &'static Language,
+    pub artifact: String,
 }
 
 impl <'a>Project {
@@ -32,6 +31,7 @@ impl <'a>Project {
                 Ok(Project {
                     name: project_name.to_string(),
                     language: language,
+                    artifact: conf.artifact,
                 })
             },
             Err(e) => {
@@ -49,7 +49,7 @@ impl <'a>Project {
         Ok(conf)
     }
 
-    pub fn create(name: &str, lang_name: &str) -> Result<(), ProjectError<'a>> {
+    pub fn create(name: &str, lang_name: &str, is_blank: bool) -> Result<(), ProjectError<'a>> {
         // Check that language is valid
         let language: &Language;
         match Language::find(lang_name) {
@@ -70,16 +70,25 @@ impl <'a>Project {
             });
         }
 
-        // Create project folder
-        if let Some(e) = fs::create_dir(&project_path).err() {
-            return Err(ProjectError {
-                message: "Could not create project directory",
-                root: RootError::IoError(e),
-            });
+        // Clone example project or create empty project folder
+        if is_blank {
+            if let Some(e) = fs::create_dir(&project_path).err() {
+                return Err(ProjectError {
+                    message: "Could not create project directory",
+                    root: RootError::IoError(e),
+                });
+            }
+        } else {
+            Command::new("git")
+                .arg("clone")
+                .arg(language.example_repo)
+                .arg(name)
+                .output()
+                .unwrap();
         }
 
         // Create project.json
-        let project_conf = ProjectConf::new(lang_name);
+        let project_conf = ProjectConf::new(lang_name, language.artifact);
         project_path.push("project.json");
         if let Some(e) = ProjectConf::save(&project_conf, &project_path).err() {
             return Err(ProjectError {
@@ -87,48 +96,34 @@ impl <'a>Project {
                 root: RootError::ConfigError(e),
             });
         }
-        
-        // Create bootstrap.<ext>
-        project_path.set_file_name("bootstrap");
-        project_path.set_extension(language.extension);
-        
-        let mut bootstrap_file: File;
-        match File::create(&project_path) {
-            Ok(f) => bootstrap_file = f,
-            Err(e) => return Err(ProjectError {
-                message: "Could not create bootstrap file",
-                root: RootError::IoError(e),
-            }),
-        }
-        
-        if let Some(e) = bootstrap_file.write_all(language.bootstrap.as_bytes()).err() {
-            return Err(ProjectError {
-                message: "Could not write bootstrap file",
-                root: RootError::IoError(e),
-            });
-        }
 
         Ok(())
     }
     
     pub fn run(&self, args: &Vec<String>) -> Result<ExitStatus, ProjectError> {
-        let bootstrap_path = format!("bootstrap.{}", self.language.extension);
         let mut command: Child;
-        let cmd_result = Command::new(self.language.runtime)
-            .arg(bootstrap_path)
-            .args(args)
+        let mut cmd: Command;
+
+        if self.language.runtime.is_some() {
+            cmd = Command::new(self.language.runtime.unwrap());
+            cmd.arg(&self.artifact);
+        } else {
+            cmd = Command::new(&self.artifact);
+        }
+
+        let cmd_result = cmd.args(args)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn();
-            
+
         match cmd_result {
             Ok(cmd) => command = cmd,
             Err(e) => return Err(ProjectError {
-                message: "Could not run bootstrap",
+                message: "Could not run project",
                 root: RootError::IoError(e),
             }),
         }
-    
+
         match command.wait() {
     	    Ok(s) => Ok(s),
     	    Err(e) => Err(ProjectError {
