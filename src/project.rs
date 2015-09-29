@@ -83,6 +83,8 @@ impl <'a>Project {
                 .arg("clone")
                 .arg(language.example_repo)
                 .arg(name)
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
                 .output()
                 .unwrap();
         }
