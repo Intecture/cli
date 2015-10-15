@@ -27,9 +27,10 @@ Usage:
   incli --version
 
 Options:
+  -b --blank	Create a blank project.
   -h --help     Show this screen.
-  --version     Show version.
   -v --verbose  Verbose output.
+  --version     Show version.
 ";
 
 #[derive(Debug, RustcDecodable)]
