@@ -33,6 +33,7 @@ pub static VALID_LANGUAGES: [Language; 4] = [
     },
 ];
 
+#[derive(Debug)]
 pub struct Language {
     pub name: &'static str,
     pub artifact: &'static str,
@@ -49,5 +50,20 @@ impl Language {
         }
         
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_find_nolang() {
+        assert!(Language::find("NOLANG").is_none());
+    }
+
+    #[test]
+    fn test_find_ok() {
+        assert!(Language::find("rust").is_some());
     }
 }

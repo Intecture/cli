@@ -15,6 +15,7 @@ mod language;
 
 use docopt::Docopt;
 use project::{Project, ProjectError};
+use std::env;
 use std::process::exit;
 
 static USAGE: &'static str = "
@@ -58,23 +59,25 @@ fn main() {
     if args.flag_version {
         println!("0.0.1");
     } else if args.cmd_run == true {
-        match Project::new() {
-            Ok(project) => {
-                let result = project.run(&args.arg_arg);
-
-                if let Some(e) = result.err() {
-                    println!("{:?}", e);
-                    exit(1);
-                }
-            },
-            Err(e) => print_err(&e, args.flag_v || args.flag_verbose),
+        if let Some(e) = run(&args.arg_arg).err() {
+            print_err(&e, args.flag_v || args.flag_verbose);
         }
     } else if args.cmd_init == true {
-        match Project::create(&args.arg_name, &args.arg_lang, args.flag_b || args.flag_blank) {
-            Ok(_) => println!("Created project {}", args.arg_name),
-            Err(e) => print_err(&e, args.flag_v || args.flag_verbose),
+        if let Some(e) = init(&args.arg_name, &args.arg_lang, args.flag_b || args.flag_blank).err() {
+            print_err(&e, args.flag_v || args.flag_verbose);
         }
     }
+}
+
+fn run<'a>(args: &Vec<String>) -> Result<(), ProjectError<'a>> {
+    let mut current_dir = env::current_dir().unwrap();
+    let project = try!(Project::new(&mut current_dir));
+    try!(project.run(args));
+    Ok(())
+}
+
+fn init<'a>(name: &str, lang_name: &str, is_blank: bool) -> Result<(), ProjectError<'a>> {
+    Project::create(name, lang_name, is_blank)
 }
 
 fn print_err(e: &ProjectError, verbose: bool) {

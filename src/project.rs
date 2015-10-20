@@ -9,10 +9,11 @@
 use config::{Config, ConfigError};
 use config::project::ProjectConf;
 use language::Language;
-use std::{env, fs, io};
+use std::{fs, io};
 use std::path::PathBuf;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 
+#[derive(Debug)]
 pub struct Project {
     pub name: String,
     pub language: &'static Language,
@@ -20,10 +21,8 @@ pub struct Project {
 }
 
 impl <'a>Project {
-    pub fn new() -> Result<Project, ProjectError<'a>> {
-        let mut current_dir = env::current_dir().unwrap();
-
-        match Self::get_config(&mut current_dir) {
+    pub fn new(current_dir: &mut PathBuf) -> Result<Project, ProjectError<'a>> {
+        match Self::get_config(current_dir) {
             Ok(conf) => {
                 let project_name = current_dir.iter().last().unwrap().to_str().unwrap();
 
@@ -110,8 +109,7 @@ impl <'a>Project {
         Ok(())
     }
     
-    pub fn run(&self, args: &Vec<String>) -> Result<ExitStatus, ProjectError> {
-        let mut command: Child;
+    pub fn run(&self, args: &Vec<String>) -> Result<ExitStatus, ProjectError<'a>> {
         let mut cmd: Command;
 
         if self.language.runtime.is_some() {
@@ -121,25 +119,26 @@ impl <'a>Project {
             cmd = Command::new(&self.artifact);
         }
 
+        // Stream command pipes to stdout and strerr
         let cmd_result = cmd.args(args)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn();
 
         match cmd_result {
-            Ok(cmd) => command = cmd,
+            Ok(mut cmd_child) => {
+                match cmd_child.wait() {
+                    Ok(s) => Ok(s),
+                    Err(e) => Err(ProjectError {
+                        message: "Error while running project",
+                        root: RootError::IoError(e),
+                    })
+                }
+            }
             Err(e) => return Err(ProjectError {
                 message: "Could not run project",
                 root: RootError::IoError(e),
             }),
-        }
-
-        match command.wait() {
-    	    Ok(s) => Ok(s),
-    	    Err(e) => Err(ProjectError {
-	            message: "Error while running project",
-	            root: RootError::IoError(e),
-            })
         }
     }
 }
@@ -155,4 +154,92 @@ pub enum RootError {
     None(()),
     ConfigError(ConfigError),
     IoError(io::Error),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::{Path, PathBuf};
+    use std::fs::{create_dir, File, metadata, remove_dir, remove_dir_all};
+    use std::io::Write;
+
+    #[test]
+    fn test_new_noconf() {
+        create_dir("test_new_noconf").unwrap();
+        let mut path = PathBuf::from("test_new_noconf");
+
+        let result = Project::new(&mut path);
+        println!("{:?}", result);
+        assert!(result.is_err());
+
+        let err = result.err().unwrap();
+        assert_eq!(err.message, "Could not load project.json");
+
+        remove_dir_all("test_new_noconf").unwrap();
+    }
+
+    #[test]
+    fn test_new_nolang() {
+        create_dir("test_new_nolang").unwrap();
+        let mut path = PathBuf::from("test_new_nolang");
+
+        let test_path = Path::new("test_new_nolang/project.json");
+        let mut file = File::create(&test_path).unwrap();
+        file.write_all("{\"language\":\"NOLANG\",\"artifact\":\"none\"}".as_bytes()).unwrap();
+
+        let result = Project::new(&mut path);
+        assert!(result.is_err());
+
+        let err = result.err().unwrap();
+        assert_eq!(err.message, "Unsupported language");
+
+        remove_dir_all("test_new_nolang").unwrap();
+    }
+
+    #[test]
+    fn test_new_ok() {
+        create_dir("test_new_ok").unwrap();
+        let mut path = PathBuf::from("test_new_ok");
+
+        let test_path = Path::new("test_new_ok/project.json");
+        let mut file = File::create(&test_path).unwrap();
+        file.write_all("{\"language\":\"php\",\"artifact\":\"index.php\"}".as_bytes()).unwrap();
+
+        let result = Project::new(&mut path);
+        assert!(result.is_ok());
+
+        remove_dir_all("test_new_ok").unwrap();
+    }
+
+    #[test]
+    fn test_create_nolang() {
+        let result = Project::create("test_create_nolang", "NOLANG", true);
+        assert!(result.is_err());
+
+        let err = result.err().unwrap();
+        assert_eq!(err.message, "Unsupported language");
+    }
+
+    #[test]
+    fn test_create_exists() {
+        create_dir("test_create_exists").unwrap();
+
+        let result = Project::create("test_create_exists", "php", true);
+        assert!(result.is_err());
+
+        let err = result.err().unwrap();
+        assert_eq!(err.message, "Project already exists");
+
+        remove_dir("test_create_exists").unwrap();
+    }
+
+    #[test]
+    fn test_create_ok() {
+        let result = Project::create("test_create_ok", "php", true);
+        assert!(result.is_ok());
+        assert!(metadata("test_create_ok").is_ok());
+        assert!(metadata("test_create_ok/project.json").is_ok());
+
+        remove_dir_all("test_create_ok").unwrap();
+    }
 }
