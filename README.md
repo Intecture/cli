@@ -27,8 +27,11 @@ Next, clone this repository to your local machine and use the Makefile to build 
 ```
 $ git clone #...
 $ cd intecture-cli/
-$ make && sudo make install
+$ make
+$ make test && sudo make install
 ```
+
+Note that we chained the test and install targets. Thus if the tests fail, we don't install a bad binary!
 
 Once this has finished, you should have a shiny new binary called *incli*, which lives in */usr/local/bin* if it exists, or */usr/bin* if not.
 

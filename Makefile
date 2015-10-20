@@ -27,5 +27,8 @@ install:
 uninstall:
 	rm -f $(USRPATH)/bin/incli
 
+test:
+	$(CARGO) test
+
 clean:
 	$(CARGO) clean
