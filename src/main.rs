@@ -28,7 +28,7 @@ Usage:
   incli --version
 
 Options:
-  -b --blank	Create a blank project.
+  -b --blank    Create a blank project.
   -h --help     Show this screen.
   -v --verbose  Verbose output.
   --version     Show version.
@@ -53,8 +53,8 @@ struct Args {
 #[cfg_attr(test, allow(dead_code))]
 fn main() {
     let args: Args = Docopt::new(USAGE)
-	    .and_then(|d| d.decode())
-	    .unwrap_or_else(|e| e.exit());
+        .and_then(|d| d.decode())
+        .unwrap_or_else(|e| e.exit());
 
     if args.flag_version {
         println!("0.0.1");
