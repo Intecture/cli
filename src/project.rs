@@ -35,10 +35,19 @@ impl <'a>Project {
                     }),
                 }
 
+                let mut artifact = conf.artifact;
+
+                // If we are calling a binary and the user hasn't
+                // specified a path to that binary, prepend "./" so
+                // that it can be invoked as a command.
+                if language.runtime.is_none() && !&artifact.chars().any(|c: char| c == '/') {
+                    artifact = format!("./{}", artifact);
+                }
+
                 Ok(Project {
                     name: project_name.to_string(),
                     language: language,
-                    artifact: conf.artifact,
+                    artifact: artifact,
                 })
             },
             Err(e) => {
@@ -136,7 +145,7 @@ impl <'a>Project {
                 }
             }
             Err(e) => return Err(ProjectError {
-                message: "Could not run project",
+                message: "Could not run project artifact",
                 root: RootError::IoError(e),
             }),
         }
