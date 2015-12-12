@@ -1,6 +1,4 @@
-# Intecture
-
-[![Build Status](https://travis-ci.org/betweenlines/intecture-cli.svg?branch=master)](https://travis-ci.org/betweenlines/intecture-cli)
+# Intecture [![Build Status](https://travis-ci.org/betweenlines/intecture-cli.svg?branch=master)](https://travis-ci.org/betweenlines/intecture-cli)
 
 Intecture is a developer friendly, language agnostic configuration management tool for server systems.
 
