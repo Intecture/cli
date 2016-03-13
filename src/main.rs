@@ -57,7 +57,7 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
 
     if args.flag_version {
-        println!("0.0.1");
+        println!("0.0.2");
     } else if args.cmd_run == true {
         if let Some(e) = run(&args.arg_arg).err() {
             print_err(&e, args.flag_v || args.flag_verbose);
@@ -82,10 +82,10 @@ fn init<'a>(name: &str, lang_name: &str, is_blank: bool) -> Result<(), ProjectEr
 
 fn print_err(e: &ProjectError, verbose: bool) {
     println!("{}", e.message);
-                
+
     if verbose {
         println!("{:?}", e.root);
     }
-    
+
     exit(1);
 }
