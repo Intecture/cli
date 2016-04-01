@@ -6,11 +6,18 @@
 // https://www.tldrlegal.com/l/mpl-2.0>. This file may not be copied,
 // modified, or distributed except according to those terms.
 
-use config::{Config, ConfigError};
+use cert::Cert;
+use config::Config;
 use config::project::ProjectConf;
+use czmq::ZCert;
+use host::HOSTS_DIR;
+use error::Error;
 use language::Language;
-use std::{fs, io};
-use std::path::PathBuf;
+use Result;
+use std::{error, fmt};
+use std::fs::{create_dir, File, metadata};
+use std::io::Write;
+use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
 
 #[derive(Debug)]
@@ -20,85 +27,58 @@ pub struct Project {
     pub artifact: String,
 }
 
-impl <'a>Project {
-    pub fn new(current_dir: &mut PathBuf) -> Result<Project, ProjectError<'a>> {
-        match Self::get_config(current_dir) {
-            Ok(conf) => {
-                let project_name = current_dir.iter().last().unwrap().to_str().unwrap();
+impl Project {
+    pub fn load(project_path: &Path) -> Result<Project> {
+        // Load config
+        let mut buf = project_path.to_path_buf();
+        buf.push("project.json");
+        let conf = try!(ProjectConf::load(&buf));
 
-                let language: &Language;
-                match Language::find(&conf.language) {
-                    Some(l) => language = l,
-                    None => return Err(ProjectError {
-                        message: "Unsupported language",
-                        root: RootError::None(()),
-                    }),
-                }
+        let project_name = project_path.iter().last().unwrap().to_str().unwrap();
 
-                let mut artifact = conf.artifact;
-
-                // If we are calling a binary and the user hasn't
-                // specified a path to that binary, prepend "./" so
-                // that it can be invoked as a command.
-                if language.runtime.is_none() && !&artifact.chars().any(|c: char| c == '/') {
-                    artifact = format!("./{}", artifact);
-                }
-
-                Ok(Project {
-                    name: project_name.to_string(),
-                    language: language,
-                    artifact: artifact,
-                })
-            },
-            Err(e) => {
-                Err(ProjectError {
-                    message: "Could not load project.json",
-                    root: RootError::ConfigError(e),
-                })
-            }
+        let language: &Language;
+        match Language::find(&conf.language) {
+            Some(l) => language = l,
+            None => return Err(Error::from(ProjectError::InvalidLang)),
         }
+
+        let mut artifact = conf.artifact;
+
+        // If we are calling a binary and the user hasn't specified a
+        // path to that binary, prepend "./" so that it can be
+        // invoked as a command.
+        if language.runtime.is_none() && !&artifact.chars().any(|c: char| c == '/') {
+            artifact = format!("./{}", artifact);
+        }
+
+        Ok(Project {
+            name: project_name.to_string(),
+            language: language,
+            artifact: artifact,
+        })
     }
 
-    fn get_config(path: &mut PathBuf) -> Result<ProjectConf, ConfigError> {
-        path.push("project.json");
-        let conf = try!(ProjectConf::load(&path));
-        Ok(conf)
-    }
-
-    pub fn create(name: &str, lang_name: &str, is_blank: bool) -> Result<(), ProjectError<'a>> {
+    pub fn create(project_path: &Path, lang_name: &str, is_blank: bool) -> Result<()> {
         // Check that language is valid
         let language: &Language;
         match Language::find(lang_name) {
             Some(l) => language = l,
-            None => return Err(ProjectError {
-                message: "Unsupported language",
-                root: RootError::None(()),
-            }),
+            None => return Err(Error::from(ProjectError::InvalidLang)),
         }
 
-        let mut project_path = PathBuf::from(name);
-
         // Make sure folder doesn't already exist
-        if fs::metadata(&project_path).is_ok() {
-            return Err(ProjectError {
-                message: "Project already exists",
-                root: RootError::None(()),
-            });
+        if metadata(&project_path).is_ok() {
+            return Err(Error::from(ProjectError::ProjectExists));
         }
 
         // Clone example project or create empty project folder
         if is_blank {
-            if let Some(e) = fs::create_dir(&project_path).err() {
-                return Err(ProjectError {
-                    message: "Could not create project directory",
-                    root: RootError::IoError(e),
-                });
-            }
+            try!(create_dir(&project_path));
         } else {
             Command::new("git")
                 .arg("clone")
                 .arg(language.example_repo)
-                .arg(name)
+                .arg(&project_path)
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .output()
@@ -107,148 +87,129 @@ impl <'a>Project {
 
         // Create project.json
         let project_conf = ProjectConf::new(lang_name, language.artifact);
-        project_path.push("project.json");
-        if let Some(e) = ProjectConf::save(&project_conf, &project_path).err() {
-            return Err(ProjectError {
-                message: "Could not create project.json",
-                root: RootError::ConfigError(e),
-            });
-        }
+        let mut buf = project_path.to_path_buf();
+        buf.push("project.json");
+        try!(ProjectConf::save(&project_conf, &buf));
+
+        // Create .nodes cert dir
+        let mut buf = project_path.to_path_buf();
+        buf.push(HOSTS_DIR);
+        try!(create_dir(buf));
+
+        // Create user certificate
+        let zcert = try!(ZCert::new());
+        let cert = Cert::new(&zcert);
+        let cert_path = format!("{}/user.crt", project_path.to_str().unwrap());
+        let mut cert_file = try!(File::create(&cert_path));
+        try!(cert_file.write_all(cert.secret().as_bytes()));
+        try!(Command::new("chmod").arg("600").arg(cert_path).status());
+
+        println!("A new user certificate has been generated.
+
+To complete the installation, please copy+paste this certificate into
+the host's \"users\" directory.
+
+------------------------COPY BELOW THIS LINE-------------------------
+{}
+------------------------COPY ABOVE THIS LINE-------------------------", cert.public());
 
         Ok(())
     }
-    
-    pub fn run(&self, args: &Vec<String>) -> Result<ExitStatus, ProjectError<'a>> {
-        let mut cmd: Command;
 
-        if self.language.runtime.is_some() {
-            cmd = Command::new(self.language.runtime.unwrap());
-            cmd.arg(&self.artifact);
-        } else {
-            cmd = Command::new(&self.artifact);
-        }
+    pub fn run(&self, args: &Vec<String>) -> Result<ExitStatus> {
+        let mut cmd = match self.language.runtime {
+            Some(runtime) => {
+                let mut cmd = Command::new(runtime);
+                cmd.arg(&self.artifact);
+                cmd
+            },
+            None => Command::new(&self.artifact),
+        };
 
         // Stream command pipes to stdout and strerr
-        let cmd_result = cmd.args(args)
+        Ok(try!(cmd.args(args)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
-            .spawn();
-
-        match cmd_result {
-            Ok(mut cmd_child) => {
-                match cmd_child.wait() {
-                    Ok(s) => Ok(s),
-                    Err(e) => Err(ProjectError {
-                        message: "Error while running project",
-                        root: RootError::IoError(e),
-                    })
-                }
-            }
-            Err(e) => return Err(ProjectError {
-                message: "Could not run project artifact",
-                root: RootError::IoError(e),
-            }),
-        }
+            .status()))
     }
 }
 
 #[derive(Debug)]
-pub struct ProjectError<'a> {
-    pub message: &'a str,
-    pub root: RootError,
+pub enum ProjectError {
+    InvalidLang,
+    ProjectExists,
 }
 
-#[derive(Debug)]
-pub enum RootError {
-    None(()),
-    ConfigError(ConfigError),
-    IoError(io::Error),
+impl fmt::Display for ProjectError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ProjectError::InvalidLang => write!(f, "Invalid language"),
+            ProjectError::ProjectExists => write!(f, "Project already exists"),
+        }
+    }
+}
+
+impl error::Error for ProjectError {
+    fn description(&self) -> &str {
+        match *self {
+            ProjectError::InvalidLang => "Invalid language",
+            ProjectError::ProjectExists => "Project already exists",
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::path::{Path, PathBuf};
-    use std::fs::{create_dir, File, metadata, remove_dir, remove_dir_all};
+    use std::fs::{File, metadata};
     use std::io::Write;
+    use std::path::Path;
+    use super::*;
+    use tempdir::TempDir;
 
     #[test]
-    fn test_new_noconf() {
-        create_dir("test_new_noconf").unwrap();
-        let mut path = PathBuf::from("test_new_noconf");
-
-        let result = Project::new(&mut path);
-        println!("{:?}", result);
-        assert!(result.is_err());
-
-        let err = result.err().unwrap();
-        assert_eq!(err.message, "Could not load project.json");
-
-        remove_dir_all("test_new_noconf").unwrap();
+    fn test_load_noconf() {
+        let dir = TempDir::new("test_load_noconf").unwrap();
+        assert!(Project::load(dir.path()).is_err());
     }
 
     #[test]
-    fn test_new_nolang() {
-        create_dir("test_new_nolang").unwrap();
-        let mut path = PathBuf::from("test_new_nolang");
+    fn test_load_nolang() {
+        let dir = TempDir::new("test_load_nolang").unwrap();
 
-        let test_path = Path::new("test_new_nolang/project.json");
-        let mut file = File::create(&test_path).unwrap();
+        let mut buf = dir.path().to_path_buf();
+        buf.push("project.json");
+
+        let mut file = File::create(&buf).unwrap();
         file.write_all("{\"language\":\"NOLANG\",\"artifact\":\"none\"}".as_bytes()).unwrap();
 
-        let result = Project::new(&mut path);
-        assert!(result.is_err());
-
-        let err = result.err().unwrap();
-        assert_eq!(err.message, "Unsupported language");
-
-        remove_dir_all("test_new_nolang").unwrap();
+        assert!(Project::load(&buf).is_err());
     }
 
     #[test]
-    fn test_new_ok() {
-        create_dir("test_new_ok").unwrap();
-        let mut path = PathBuf::from("test_new_ok");
-
-        let test_path = Path::new("test_new_ok/project.json");
-        let mut file = File::create(&test_path).unwrap();
+    fn test_load_ok() {
+        let dir = TempDir::new("test_load_ok").unwrap();
+        let mut file = File::create(&format!("{}/project.json", dir.path().to_str().unwrap())).unwrap();
         file.write_all("{\"language\":\"php\",\"artifact\":\"index.php\"}".as_bytes()).unwrap();
-
-        let result = Project::new(&mut path);
-        assert!(result.is_ok());
-
-        remove_dir_all("test_new_ok").unwrap();
+        assert!(Project::load(dir.path()).is_ok());
     }
 
     #[test]
     fn test_create_nolang() {
-        let result = Project::create("test_create_nolang", "NOLANG", true);
-        assert!(result.is_err());
-
-        let err = result.err().unwrap();
-        assert_eq!(err.message, "Unsupported language");
+        assert!(Project::create(Path::new("/fake/path"), "NOLANG", true).is_err());
     }
 
     #[test]
     fn test_create_exists() {
-        create_dir("test_create_exists").unwrap();
-
-        let result = Project::create("test_create_exists", "php", true);
-        assert!(result.is_err());
-
-        let err = result.err().unwrap();
-        assert_eq!(err.message, "Project already exists");
-
-        remove_dir("test_create_exists").unwrap();
+        let dir = TempDir::new("test_create_exists").unwrap();
+        assert!(Project::create(dir.path(), "php", true).is_err());
     }
 
     #[test]
     fn test_create_ok() {
-        let result = Project::create("test_create_ok", "php", true);
-        assert!(result.is_ok());
-        assert!(metadata("test_create_ok").is_ok());
-        assert!(metadata("test_create_ok/project.json").is_ok());
-
-        remove_dir_all("test_create_ok").unwrap();
+        let dir = TempDir::new("test_create_ok").unwrap();
+        let mut buf = dir.path().to_path_buf();
+        buf.push("proj_dir");
+        assert!(Project::create(&buf, "php", true).is_ok());
+        assert!(metadata(format!("{}/project.json", buf.to_str().unwrap())).is_ok());
     }
 }

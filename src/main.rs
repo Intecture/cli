@@ -6,17 +6,31 @@
 // https://www.tldrlegal.com/l/mpl-2.0>. This file may not be copied,
 // modified, or distributed except according to those terms.
 
-extern crate rustc_serialize;
+extern crate czmq;
 extern crate docopt;
+extern crate rustc_serialize;
+#[cfg(test)]
+extern crate tempdir;
+extern crate time;
 
+mod cert;
 mod config;
-mod project;
+mod error;
 mod language;
+mod host;
+mod project;
 
 use docopt::Docopt;
-use project::{Project, ProjectError};
-use std::env;
+use host::Host;
+use project::Project;
+use std::{env, io, result};
+use std::error::Error;
+use std::path::Path;
 use std::process::exit;
+
+pub type Result<T> = result::Result<T, error::Error>;
+
+const VERSION: &'static str = "0.1.0";
 
 static USAGE: &'static str = "
 Intecture CLI.
@@ -24,6 +38,7 @@ Intecture CLI.
 Usage:
   incli [(-v | --verbose)] run [<arg>...]
   incli [(-v | --verbose)] init [(-b | --blank)] (<name> <lang>)
+  incli host (add | remove | bootstrap) <hostname>
   incli (-h | --help)
   incli --version
 
@@ -38,6 +53,10 @@ Options:
 struct Args {
     cmd_run: bool,
     cmd_init: bool,
+    cmd_host: bool,
+    cmd_add: bool,
+    cmd_remove: bool,
+    cmd_bootstrap: bool,
     flag_h: bool,
     flag_help: bool,
     flag_v: bool,
@@ -48,6 +67,7 @@ struct Args {
     arg_arg: Vec<String>,
     arg_name: String,
     arg_lang: String,
+    arg_hostname: String,
 }
 
 #[cfg_attr(test, allow(dead_code))]
@@ -57,35 +77,58 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
 
     if args.flag_version {
-        println!("0.0.2");
-    } else if args.cmd_run == true {
-        if let Some(e) = run(&args.arg_arg).err() {
-            print_err(&e, args.flag_v || args.flag_verbose);
+        println!("{}", VERSION);
+    }
+    else if args.cmd_run {
+        let project = try_exit(Project::load(&mut env::current_dir().unwrap()), args.flag_v || args.flag_verbose);
+        try_exit(project.run(&args.arg_arg), args.flag_v || args.flag_verbose);
+    }
+    else if args.cmd_init {
+        try_exit(Project::create(&Path::new(&args.arg_name), &args.arg_lang, args.flag_b || args.flag_blank), args.flag_v || args.flag_verbose);
+    }
+    else if args.cmd_host {
+        let host = Host::new(&args.arg_hostname);
+
+        if args.cmd_add {
+            try_exit(host.add(), args.flag_v || args.flag_verbose);
         }
-    } else if args.cmd_init == true {
-        if let Some(e) = init(&args.arg_name, &args.arg_lang, args.flag_b || args.flag_blank).err() {
-            print_err(&e, args.flag_v || args.flag_verbose);
+        else if args.cmd_remove {
+            println!("Are you sure you want to delete this host certificate?");
+            loop {
+                println!("Please enter [y/n]: ");
+                let mut input = String::new();
+                match io::stdin().read_line(&mut input) {
+                    Ok(_) => match { input.as_ref() as &str }.trim() {
+                        "y" => {
+                            try_exit(host.remove(), args.flag_v || args.flag_verbose);
+                            break;
+                        },
+                        "n" => break,
+                        _ => (),
+                    },
+                    Err(e) => {
+                        println!("Stdin error: {}", e);
+                        exit(1);
+                    },
+                }
+            }
+        }
+        else if args.cmd_bootstrap {
+            unimplemented!();
         }
     }
 }
 
-fn run<'a>(args: &Vec<String>) -> Result<(), ProjectError<'a>> {
-    let mut current_dir = env::current_dir().unwrap();
-    let project = try!(Project::new(&mut current_dir));
-    try!(project.run(args));
-    Ok(())
-}
+fn try_exit<T>(r: Result<T>, verbose: bool) -> T {
+    if let Err(e) = r {
+        println!("{}", e);
 
-fn init<'a>(name: &str, lang_name: &str, is_blank: bool) -> Result<(), ProjectError<'a>> {
-    Project::create(name, lang_name, is_blank)
-}
+        if verbose {
+            println!("{:?}", e.cause());
+        }
 
-fn print_err(e: &ProjectError, verbose: bool) {
-    println!("{}", e.message);
-
-    if verbose {
-        println!("{:?}", e.root);
+        exit(1);
     }
 
-    exit(1);
+    r.unwrap()
 }
