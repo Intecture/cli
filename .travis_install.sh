@@ -12,6 +12,15 @@ make
 sudo make install
 cd ..
 
+curl -sSOL https://github.com/zeromq/zeromq4-1/archive/v4.1.4.tar.gz
+tar zxf v4.1.4.tar.gz
+cd zeromq4-1-4.1.4
+./autogen.sh
+./configure --with-libsodium
+make -j 8
+sudo make install
+cd ..
+
 git clone https://github.com/zeromq/czmq
 cd czmq
 ./autogen.sh
