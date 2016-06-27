@@ -6,24 +6,24 @@
 // https://www.tldrlegal.com/l/mpl-2.0>. This file may not be copied,
 // modified, or distributed except according to those terms.
 
-use config::Config;
+use zdaemon::ConfigFile;
 
 #[derive(Debug)]
 #[derive(RustcDecodable, RustcEncodable)]
-pub struct ProjectConf {
+pub struct Config {
     pub language: String,
     pub artifact: String,
+    pub auth_server: String,
 }
 
-impl Config for ProjectConf {
-    type ConfigFile = ProjectConf;
-}
+impl ConfigFile for Config {}
 
-impl ProjectConf {
-    pub fn new(lang: &str, artifact: &str) -> ProjectConf {
-        ProjectConf {
-            language: lang.to_string(),
-            artifact: artifact.to_string(),
+impl Config {
+    pub fn new(language: &str, artifact: &str, auth_server: &str) -> Config {
+        Config {
+            language: language.into(),
+            artifact: artifact.into(),
+            auth_server: auth_server.into(),
         }
     }
 }

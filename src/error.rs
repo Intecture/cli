@@ -6,32 +6,37 @@
 // https://www.tldrlegal.com/l/mpl-2.0>. This file may not be copied,
 // modified, or distributed except according to those terms.
 
-use czmq::Error as CError;
-use host::HostError;
+use auth;
+use czmq;
 use project::ProjectError;
 use rustc_serialize::json::{DecoderError, EncoderError};
-use std::{error, fmt, io};
+use std::{error, fmt, io, result};
 use std::convert::From;
+use zdaemon;
+
+pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
-    Czmq(CError),
+    Auth(auth::Error),
+    Czmq(czmq::Error),
     Decoder(DecoderError),
     Encoder(EncoderError),
     Io(io::Error),
-    Host(HostError),
     Project(ProjectError),
+    ZDaemon(zdaemon::Error),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Error::Auth(ref e) => write!(f, "Auth error: {}", e),
             Error::Czmq(ref e) => write!(f, "CZMQ error: {}", e),
             Error::Decoder(ref e) => write!(f, "Decoder error: {}", e),
             Error::Encoder(ref e) => write!(f, "Encoder error: {}", e),
             Error::Io(ref e) => write!(f, "IO error: {}", e),
-            Error::Host(ref e) => write!(f, "Host error: {}", e),
             Error::Project(ref e) => write!(f, "Project error: {}", e),
+            Error::ZDaemon(ref e) => write!(f, "ZDaemon error: {}", e),
         }
     }
 }
@@ -39,29 +44,37 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
+            Error::Auth(ref e) => e.description(),
             Error::Czmq(ref e) => e.description(),
             Error::Decoder(ref e) => e.description(),
             Error::Encoder(ref e) => e.description(),
             Error::Io(ref e) => e.description(),
-            Error::Host(ref e) => e.description(),
             Error::Project(ref e) => e.description(),
+            Error::ZDaemon(ref e) => e.description(),
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
+            Error::Auth(ref e) => Some(e),
             Error::Czmq(ref e) => Some(e),
             Error::Decoder(ref e) => Some(e),
             Error::Encoder(ref e) => Some(e),
             Error::Io(ref e) => Some(e),
-            Error::Host(ref e) => Some(e),
             Error::Project(ref e) => Some(e),
+            Error::ZDaemon(ref e) => Some(e),
         }
     }
 }
 
-impl From<CError> for Error {
-    fn from(err: CError) -> Error {
+impl From<auth::Error> for Error {
+    fn from(err: auth::Error) -> Error {
+        Error::Auth(err)
+    }
+}
+
+impl From<czmq::Error> for Error {
+    fn from(err: czmq::Error) -> Error {
         Error::Czmq(err)
     }
 }
@@ -84,14 +97,14 @@ impl From<EncoderError> for Error {
     }
 }
 
-impl From<HostError> for Error {
-    fn from(err: HostError) -> Error {
-        Error::Host(err)
-    }
-}
-
 impl From<ProjectError> for Error {
     fn from(err: ProjectError) -> Error {
         Error::Project(err)
+    }
+}
+
+impl From<zdaemon::Error> for Error {
+    fn from(err: zdaemon::Error) -> Error {
+        Error::ZDaemon(err)
     }
 }

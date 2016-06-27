@@ -7,14 +7,15 @@
 // modified, or distributed except according to those terms.
 
 use czmq::ZCert;
+use std::ops::Deref;
 use time;
 
-pub struct Cert<'a> {
-    zcert: &'a ZCert,
+pub struct Cert {
+    zcert: ZCert,
 }
 
-impl<'a> Cert<'a> {
-    pub fn new(zcert: &'a ZCert) -> Cert<'a> {
+impl Cert {
+    pub fn new(zcert: ZCert) -> Cert {
         Cert {
             zcert: zcert,
         }
@@ -59,5 +60,45 @@ impl<'a> Cert<'a> {
     // TODO: Need to handle metadata
     fn add_metadata(&self, header: &mut String) {
         header.push_str("metadata\n");
+    }
+}
+
+impl Deref for Cert {
+    type Target = ZCert;
+
+    fn deref(&self) -> &ZCert {
+        &self.zcert
+    }
+}
+
+// These tests are pretty useless, but help code coverage
+#[cfg(test)]
+mod tests {
+    use czmq::ZCert;
+    use super::*;
+
+    #[test]
+    fn test_public() {
+        let cert = Cert::new(ZCert::new().unwrap());
+        cert.public();
+    }
+
+    #[test]
+    fn test_secret() {
+        let cert = Cert::new(ZCert::new().unwrap());
+        cert.secret();
+    }
+
+    #[test]
+    fn test_header() {
+        let cert = Cert::new(ZCert::new().unwrap());
+        cert.header(true);
+    }
+
+    #[test]
+    fn test_add_metadata() {
+        let cert = Cert::new(ZCert::new().unwrap());
+        let mut header = String::new();
+        cert.add_metadata(&mut header);
     }
 }

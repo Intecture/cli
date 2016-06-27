@@ -12,23 +12,23 @@ extern crate rustc_serialize;
 #[cfg(test)]
 extern crate tempdir;
 extern crate time;
+extern crate zdaemon;
 
+mod auth;
 mod cert;
 mod config;
 mod error;
 mod language;
-mod host;
 mod project;
 
+use auth::Auth;
 use docopt::Docopt;
-use host::Host;
+use error::Result;
 use project::Project;
-use std::{env, io, result};
+use std::{env, io};
 use std::error::Error;
 use std::path::Path;
 use std::process::exit;
-
-pub type Result<T> = result::Result<T, error::Error>;
 
 const VERSION: &'static str = "0.1.0";
 
@@ -38,7 +38,8 @@ Intecture CLI.
 Usage:
   incli [(-v | --verbose)] run [<arg>...]
   incli [(-v | --verbose)] init [(-b | --blank)] (<name> <lang>)
-  incli host (add | remove | bootstrap) <hostname>
+  incli [(-v | --verbose)] host (add | delete | bootstrap) <hostname>
+  incli [(-v | --verbose)] user (add | delete) <username>
   incli (-h | --help)
   incli --version
 
@@ -55,8 +56,9 @@ struct Args {
     cmd_init: bool,
     cmd_host: bool,
     cmd_add: bool,
-    cmd_remove: bool,
+    cmd_delete: bool,
     cmd_bootstrap: bool,
+    cmd_user: bool,
     flag_h: bool,
     flag_help: bool,
     flag_v: bool,
@@ -68,9 +70,9 @@ struct Args {
     arg_name: String,
     arg_lang: String,
     arg_hostname: String,
+    arg_username: String,
 }
 
-#[cfg_attr(test, allow(dead_code))]
 fn main() {
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.decode())
@@ -86,21 +88,29 @@ fn main() {
     else if args.cmd_init {
         try_exit(Project::create(&Path::new(&args.arg_name), &args.arg_lang, args.flag_b || args.flag_blank), args.flag_v || args.flag_verbose);
     }
-    else if args.cmd_host {
-        let host = Host::new(&args.arg_hostname);
+    else if args.cmd_host || args.cmd_user {
+        let cert_type = if args.cmd_host { "host" } else { "user" };
+        let name = if args.cmd_host { &args.arg_hostname } else { &args.arg_username };
+
+        let auth = try_exit(Auth::new(&env::current_dir().unwrap()), args.flag_v || args.flag_verbose);
 
         if args.cmd_add {
-            try_exit(host.add(), args.flag_v || args.flag_verbose);
+            let cert = try_exit(auth.add(cert_type, name), args.flag_v || args.flag_verbose);
+            println!("Please distribute this certificate securely.
+
+------------------------COPY BELOW THIS LINE-------------------------
+{}
+------------------------COPY ABOVE THIS LINE-------------------------", cert.public());
         }
-        else if args.cmd_remove {
-            println!("Are you sure you want to delete this host certificate?");
+        else if args.cmd_delete {
+            println!("Are you sure you want to delete this certificate?");
             loop {
                 println!("Please enter [y/n]: ");
                 let mut input = String::new();
                 match io::stdin().read_line(&mut input) {
                     Ok(_) => match { input.as_ref() as &str }.trim() {
                         "y" => {
-                            try_exit(host.remove(), args.flag_v || args.flag_verbose);
+                            try_exit(auth.delete(name), args.flag_v || args.flag_verbose);
                             break;
                         },
                         "n" => break,

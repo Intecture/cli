@@ -8,17 +8,15 @@
 
 use cert::Cert;
 use config::Config;
-use config::project::ProjectConf;
 use czmq::ZCert;
-use host::HOSTS_DIR;
-use error::Error;
+use error::{Error, Result};
 use language::Language;
-use Result;
 use std::{error, fmt};
 use std::fs::{create_dir, File, metadata};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
+use zdaemon::ConfigFile;
 
 #[derive(Debug)]
 pub struct Project {
@@ -32,7 +30,7 @@ impl Project {
         // Load config
         let mut buf = project_path.to_path_buf();
         buf.push("project.json");
-        let conf = try!(ProjectConf::load(&buf));
+        let conf = try!(Config::load(&buf));
 
         let project_name = project_path.iter().last().unwrap().to_str().unwrap();
 
@@ -86,19 +84,14 @@ impl Project {
         }
 
         // Create project.json
-        let project_conf = ProjectConf::new(lang_name, language.artifact);
+        let project_conf = Config::new(lang_name, language.artifact, "auth.example.com:7101");
         let mut buf = project_path.to_path_buf();
         buf.push("project.json");
-        try!(ProjectConf::save(&project_conf, &buf));
-
-        // Create .nodes cert dir
-        let mut buf = project_path.to_path_buf();
-        buf.push(HOSTS_DIR);
-        try!(create_dir(buf));
+        try!(project_conf.save(&buf));
 
         // Create user certificate
         let zcert = try!(ZCert::new());
-        let cert = Cert::new(&zcert);
+        let cert = Cert::new(zcert);
         let cert_path = format!("{}/user.crt", project_path.to_str().unwrap());
         let mut cert_file = try!(File::create(&cert_path));
         try!(cert_file.write_all(cert.secret().as_bytes()));
@@ -189,7 +182,7 @@ mod tests {
     fn test_load_ok() {
         let dir = TempDir::new("test_load_ok").unwrap();
         let mut file = File::create(&format!("{}/project.json", dir.path().to_str().unwrap())).unwrap();
-        file.write_all("{\"language\":\"php\",\"artifact\":\"index.php\"}".as_bytes()).unwrap();
+        file.write_all("{\"language\":\"php\",\"artifact\":\"index.php\",\"auth_server\":\"auth.example.com:7101\"}".as_bytes()).unwrap();
         assert!(Project::load(dir.path()).is_ok());
     }
 

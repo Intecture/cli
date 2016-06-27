@@ -14,7 +14,8 @@ repository = "https://github.com/betweenlines/intecture-cli"
 czmq = { git = "https://github.com/petehayes102/rust-czmq.git", branch = "dev" }
 docopt = "0.6.*"
 rustc-serialize = "0.3.*"
-time = "0.1.*"
+time = "0.1"
+zdaemon = { git = "https://github.com/betweenlines/zdaemon.git", branch = "dev" }
 
 [dev-dependencies]
 
