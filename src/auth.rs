@@ -39,6 +39,33 @@ impl Auth {
         })
     }
 
+    pub fn list(&self, cert_type: &str) -> Result<Vec<String>> {
+        let req = ZMsg::new();
+        try!(req.addstr("cert::list"));
+        try!(req.addstr(cert_type));
+        try!(req.send(&self.sock));
+
+        let result = try!(ZFrame::recv(&self.sock));
+
+        match try!(try!(result.data()).or(Err(Error::HostResponse))).as_ref() {
+            "Ok" => {
+                let reply = try!(ZMsg::recv(&self.sock));
+                let mut list = Vec::new();
+
+                for frame in reply {
+                    list.push(try!(try!(frame.data()).or(Err(Error::HostResponse))));
+                }
+
+                Ok(list)
+            },
+            "Err" => {
+                let e = try!(try!(self.sock.recv_str()).or(Err(Error::HostResponse)));
+                Err(Error::HostError(e).into())
+            },
+            _ => Err(Error::HostResponse.into()),
+        }
+    }
+
     pub fn add(&self, cert_type: &str, name: &str) -> Result<Cert> {
         let req = ZMsg::new();
         try!(req.addstr("cert::create"));
@@ -139,6 +166,39 @@ mod tests {
         cert.save_secret("user.crt").unwrap();
 
         assert!(Auth::new("").is_ok());
+    }
+
+    #[test]
+    fn test_list() {
+        ZSys::init();
+
+        let (client, server) = ZSys::create_pipe().unwrap();
+
+        let handle = spawn(move|| {
+            let req = ZMsg::recv(&server).unwrap();
+            assert_eq!(&req.popstr().unwrap().unwrap(), "cert::list");
+            assert_eq!(&req.popstr().unwrap().unwrap(), "host");
+
+            let rep = ZMsg::new();
+            rep.addstr("Ok").unwrap();
+            rep.addstr("Fat").unwrap();
+            rep.addstr("Yak").unwrap();
+            rep.addstr("is").unwrap();
+            rep.addstr("DELICIOUS").unwrap();
+            rep.send(&server).unwrap();
+        });
+
+        let auth = Auth {
+            sock: client,
+        };
+
+        let mut list = auth.list("host").unwrap();
+        assert_eq!(list.pop().unwrap(), "DELICIOUS");
+        assert_eq!(list.pop().unwrap(), "is");
+        assert_eq!(list.pop().unwrap(), "Yak");
+        assert_eq!(list.pop().unwrap(), "Fat");
+
+        handle.join().unwrap();
     }
 
     #[test]

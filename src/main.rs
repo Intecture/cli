@@ -39,7 +39,9 @@ Usage:
   incli [(-v | --verbose)] run [<arg>...]
   incli [(-v | --verbose)] init [(-b | --blank)] (<name> <lang>)
   incli [(-v | --verbose)] host (add | delete | bootstrap) <hostname>
+  incli [(-v | --verbose)] host list
   incli [(-v | --verbose)] user (add | delete) <username>
+  incli [(-v | --verbose)] user list
   incli (-h | --help)
   incli --version
 
@@ -52,12 +54,13 @@ Options:
 
 #[derive(Debug, RustcDecodable)]
 struct Args {
-    cmd_run: bool,
-    cmd_init: bool,
-    cmd_host: bool,
     cmd_add: bool,
-    cmd_delete: bool,
     cmd_bootstrap: bool,
+    cmd_delete: bool,
+    cmd_host: bool,
+    cmd_init: bool,
+    cmd_list: bool,
+    cmd_run: bool,
     cmd_user: bool,
     flag_h: bool,
     flag_help: bool,
@@ -123,7 +126,14 @@ fn main() {
                 }
             }
         }
-        else if args.cmd_bootstrap {
+        else if args.cmd_list {
+            let names = try_exit(auth.list(cert_type), args.flag_v || args.flag_verbose);
+
+            for name in names {
+                println!("{}", name);
+            }
+        }
+        else if args.cmd_bootstrap && args.cmd_host {
             unimplemented!();
         }
     }
