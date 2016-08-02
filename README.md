@@ -1,4 +1,4 @@
-# Intecture [![Build Status](https://travis-ci.org/betweenlines/intecture-cli.svg?branch=master)](https://travis-ci.org/betweenlines/intecture-cli)
+# Intecture [![Build Status](https://travis-ci.org/intecture/cli.svg?branch=master)](https://travis-ci.org/intecture/cli) [![Coverage Status](https://coveralls.io/repos/github/intecture/cli/badge.svg?branch=master)](https://coveralls.io/github/intecture/cli?branch=master)
 
 Intecture is a developer friendly, language agnostic configuration management tool for server systems.
 
@@ -25,8 +25,8 @@ First, as this project is written in Rust, you'll need...well, [Rust!](https://w
 Next, clone this repository to your local machine and use the Makefile to build it:
 
 ```
-$ git clone #...
-$ cd intecture-cli/
+$ git clone https://github.com/intecture/cli
+$ cd cli/
 $ make
 $ make test && sudo make install
 ```
@@ -40,7 +40,7 @@ Once this has finished, you should have a shiny new binary called *incli*, which
 Run the uninstall target on the Makefile:
 
 ```
-$ cd intecture-cli/
+$ cd cli/
 $ sudo make uninstall
 ```
 
