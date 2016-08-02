@@ -8,8 +8,7 @@
 
 use zdaemon::ConfigFile;
 
-#[derive(Debug)]
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct Config {
     pub language: String,
     pub artifact: String,
