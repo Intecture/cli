@@ -1,6 +1,6 @@
 [package]
 
-name = "cli"
+name = "intecture-cli"
 version = "0.1.0"
 authors = [ "Peter Hayes <peter.hayes@betweenlines.co.uk>" ]
 license = "MPL-2.0"

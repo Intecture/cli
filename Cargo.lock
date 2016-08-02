@@ -1,5 +1,5 @@
 [root]
-name = "cli"
+name = "intecture-cli"
 version = "0.1.0"
 dependencies = [
  "czmq 0.0.4 (git+https://github.com/petehayes102/rust-czmq.git?branch=dev)",
