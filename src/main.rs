@@ -36,12 +36,12 @@ static USAGE: &'static str = "
 Intecture CLI.
 
 Usage:
-  incli [(-v | --verbose)] run [<arg>...]
-  incli [(-v | --verbose)] init [(-b | --blank)] (<name> <lang>)
-  incli [(-v | --verbose)] host (add | delete | bootstrap) <hostname>
-  incli [(-v | --verbose)] host list
-  incli [(-v | --verbose)] user (add | delete) <username>
-  incli [(-v | --verbose)] user list
+  incli run [<arg>...]
+  incli init [(-b | --blank)] (<name> <lang>)
+  incli host (add | delete | bootstrap) <hostname>
+  incli host list
+  incli user (add | delete) <username>
+  incli user list
   incli (-h | --help)
   incli --version
 
