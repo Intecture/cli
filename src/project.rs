@@ -18,6 +18,8 @@ use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
 use zdaemon::ConfigFile;
 
+const EXAMPLE_REPO: &'static str = "https://github.com/intecture/examples";
+
 #[derive(Debug)]
 pub struct Project {
     pub name: String,
@@ -56,7 +58,7 @@ impl Project {
         })
     }
 
-    pub fn create(project_path: &Path, lang_name: &str, is_blank: bool) -> Result<()> {
+    pub fn create<P: AsRef<Path>>(project_path: P, lang_name: &str, is_example: bool) -> Result<()> {
         // Check that language is valid
         let language: &Language;
         match Language::find(lang_name) {
@@ -70,29 +72,25 @@ impl Project {
         }
 
         // Clone example project or create empty project folder
-        if is_blank {
-            try!(create_dir(&project_path));
-        } else {
-            Command::new("git")
-                .arg("clone")
-                .arg(language.example_repo)
-                .arg(&project_path)
+        if is_example {
+            Command::new("git").args(&["clone", "-b", lang_name, EXAMPLE_REPO, project_path.as_ref().to_str().unwrap()])
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
-                .output()
-                .unwrap();
+                .output().unwrap();
+        } else {
+            try!(create_dir(&project_path));
         }
 
         // Create project.json
         let project_conf = Config::new(lang_name, language.artifact, "auth.example.com:7101");
-        let mut buf = project_path.to_path_buf();
+        let mut buf = project_path.as_ref().to_path_buf();
         buf.push("project.json");
         try!(project_conf.save(&buf));
 
         // Create user certificate
         let zcert = try!(ZCert::new());
         let cert = Cert::new(zcert);
-        let cert_path = format!("{}/user.crt", project_path.to_str().unwrap());
+        let cert_path = format!("{}/user.crt", project_path.as_ref().to_str().unwrap());
         let mut cert_file = try!(File::create(&cert_path));
         try!(cert_file.write_all(cert.secret().as_bytes()));
         try!(Command::new("chmod").arg("600").arg(cert_path).status());
@@ -188,13 +186,13 @@ mod tests {
 
     #[test]
     fn test_create_nolang() {
-        assert!(Project::create(Path::new("/fake/path"), "NOLANG", true).is_err());
+        assert!(Project::create(Path::new("/fake/path"), "NOLANG", false).is_err());
     }
 
     #[test]
     fn test_create_exists() {
         let dir = TempDir::new("test_create_exists").unwrap();
-        assert!(Project::create(dir.path(), "php", true).is_err());
+        assert!(Project::create(dir.path(), "php", false).is_err());
     }
 
     #[test]
@@ -202,6 +200,7 @@ mod tests {
         let dir = TempDir::new("test_create_ok").unwrap();
         let mut buf = dir.path().to_path_buf();
         buf.push("proj_dir");
+
         assert!(Project::create(&buf, "php", true).is_ok());
         assert!(metadata(format!("{}/project.json", buf.to_str().unwrap())).is_ok());
     }

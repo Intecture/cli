@@ -37,7 +37,7 @@ Intecture CLI.
 
 Usage:
   incli run [<arg>...]
-  incli init [(-b | --blank)] (<name> <lang>)
+  incli init [(-e | --example)] (<name> <lang>)
   incli host (add | delete | bootstrap) <hostname>
   incli host list
   incli user (add | delete) <username>
@@ -46,7 +46,7 @@ Usage:
   incli --version
 
 Options:
-  -b --blank    Create a blank project.
+  -e --example  Clone an example project.
   -h --help     Show this screen.
   -v --verbose  Verbose output.
   --version     Show version.
@@ -62,17 +62,17 @@ struct Args {
     cmd_list: bool,
     cmd_run: bool,
     cmd_user: bool,
+    flag_e: bool,
+    flag_example: bool,
     flag_h: bool,
     flag_help: bool,
     flag_v: bool,
     flag_verbose: bool,
-    flag_b: bool,
-    flag_blank: bool,
     flag_version: bool,
     arg_arg: Vec<String>,
-    arg_name: String,
-    arg_lang: String,
     arg_hostname: String,
+    arg_lang: String,
+    arg_name: String,
     arg_username: String,
 }
 
@@ -89,7 +89,7 @@ fn main() {
         try_exit(project.run(&args.arg_arg), args.flag_v || args.flag_verbose);
     }
     else if args.cmd_init {
-        try_exit(Project::create(&Path::new(&args.arg_name), &args.arg_lang, args.flag_b || args.flag_blank), args.flag_v || args.flag_verbose);
+        try_exit(Project::create(&Path::new(&args.arg_name), &args.arg_lang, args.flag_e || args.flag_example), args.flag_v || args.flag_verbose);
     }
     else if args.cmd_host || args.cmd_user {
         let cert_type = if args.cmd_host { "host" } else { "user" };

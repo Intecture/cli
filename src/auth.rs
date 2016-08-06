@@ -21,11 +21,18 @@ pub struct Auth {
 impl Auth {
     pub fn new<P: AsRef<Path>>(project_path: P) -> Result<Auth> {
         let mut buf = project_path.as_ref().to_owned();
+
         buf.push("project.json");
         let config = try!(Config::load(&buf));
+        buf.pop();
 
-        let auth_cert = try!(ZCert::load("auth.crt"));
-        let user_cert = try!(ZCert::load("user.crt"));
+        buf.push("auth.crt");
+        let auth_cert = try!(ZCert::load(buf.to_str().unwrap()));
+        buf.pop();
+
+        buf.push("user.crt");
+        let user_cert = try!(ZCert::load(buf.to_str().unwrap()));
+        buf.pop();
 
         let sock = ZSock::new(ZSockType::REQ);
         user_cert.apply(&sock);
@@ -146,7 +153,6 @@ impl error::Error for Error {
 mod tests {
     use config::Config;
     use czmq::{ZCert, ZMsg, ZSys};
-    use std::env::set_current_dir;
     use std::thread::spawn;
     use super::*;
     use tempdir::TempDir;
@@ -155,17 +161,26 @@ mod tests {
     #[test]
     fn test_new() {
         let dir = TempDir::new("auth_test_new").unwrap();
-        set_current_dir(dir.path()).unwrap();
 
+        let mut path = dir.path().to_owned();
+
+        path.push("project.json");
         let config = Config::new("rust", "target/debug/hello_world", "127.0.0.1:7101");
-        config.save("project.json").unwrap();
+        config.save(&path).unwrap();
+        path.pop();
 
+        path.push("auth.crt");
         let cert = ZCert::new().unwrap();
-        cert.save_public("auth.crt").unwrap();
-        let cert = ZCert::new().unwrap();
-        cert.save_secret("user.crt").unwrap();
+        cert.save_public(path.to_str().unwrap()).unwrap();
+        path.pop();
 
-        assert!(Auth::new("").is_ok());
+        path.push("user.crt");
+        let cert = ZCert::new().unwrap();
+        cert.save_secret(path.to_str().unwrap()).unwrap();
+        path.pop();
+
+        // assert!(Auth::new(&path).is_ok());
+        Auth::new(&path).unwrap();
     }
 
     #[test]
