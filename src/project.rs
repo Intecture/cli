@@ -6,14 +6,11 @@
 // https://www.tldrlegal.com/l/mpl-2.0>. This file may not be copied,
 // modified, or distributed except according to those terms.
 
-use cert::Cert;
 use config::Config;
-use czmq::ZCert;
 use error::{Error, Result};
 use language::Language;
 use std::{error, fmt};
-use std::fs::{create_dir, File, metadata};
-use std::io::Write;
+use std::fs::{create_dir, metadata};
 use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
 use zdaemon::ConfigFile;
@@ -87,22 +84,8 @@ impl Project {
         buf.push("project.json");
         try!(project_conf.save(&buf));
 
-        // Create user certificate
-        let zcert = try!(ZCert::new());
-        let cert = Cert::new(zcert);
-        let cert_path = format!("{}/user.crt", project_path.as_ref().to_str().unwrap());
-        let mut cert_file = try!(File::create(&cert_path));
-        try!(cert_file.write_all(cert.secret().as_bytes()));
-        try!(Command::new("chmod").arg("600").arg(cert_path).status());
-
-        println!("A new user certificate has been generated.
-
-To complete the installation, please copy+paste this certificate into
-the host's \"users\" directory.
-
-------------------------COPY BELOW THIS LINE-------------------------
-{}
-------------------------COPY ABOVE THIS LINE-------------------------", cert.public());
+        println!("Remember to copy your user certificate to {}/user.crt.
+If you do not have a user certificate, obtain one from your administrator.", project_path.as_ref().to_str().unwrap());
 
         Ok(())
     }

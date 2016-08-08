@@ -31,16 +31,16 @@ impl Cert {
         c
     }
 
-    pub fn secret(&self) -> String {
-        let mut c = self.header(true);
-        self.add_metadata(&mut c);
-
-        c.push_str(&format!("curve
-    public-key = \"{}\"
-    secret-key = \"{}\"", self.zcert.public_txt(), self.zcert.secret_txt()));
-
-        c
-    }
+    // pub fn secret(&self) -> String {
+    //     let mut c = self.header(true);
+    //     self.add_metadata(&mut c);
+    //
+    //     c.push_str(&format!("curve
+    // public-key = \"{}\"
+    // secret-key = \"{}\"", self.zcert.public_txt(), self.zcert.secret_txt()));
+    //
+    //     c
+    // }
 
     fn header(&self, secret: bool) -> String {
         let cert_type = if secret { "SECRET" } else { "Public" };
@@ -83,11 +83,11 @@ mod tests {
         cert.public();
     }
 
-    #[test]
-    fn test_secret() {
-        let cert = Cert::new(ZCert::new().unwrap());
-        cert.secret();
-    }
+    // #[test]
+    // fn test_secret() {
+    //     let cert = Cert::new(ZCert::new().unwrap());
+    //     cert.secret();
+    // }
 
     #[test]
     fn test_header() {

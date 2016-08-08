@@ -23,12 +23,13 @@ mod project;
 
 use auth::Auth;
 use docopt::Docopt;
-use error::Result;
+use error::Error;
 use project::Project;
 use std::{env, io};
-use std::error::Error;
+use std::fmt::{Debug, Display};
 use std::path::Path;
 use std::process::exit;
+use std::result::Result as StdResult;
 
 const VERSION: &'static str = "0.1.0";
 
@@ -38,9 +39,9 @@ Intecture CLI.
 Usage:
   incli run [<arg>...]
   incli init [(-e | --example)] (<name> <lang>)
-  incli host (add | delete | bootstrap) <hostname>
+  incli host (add | delete | bootstrap) [(-s | --silent)] <hostname>
   incli host list
-  incli user (add | delete) <username>
+  incli user (add | delete) [(-s | --silent)] <username>
   incli user list
   incli (-h | --help)
   incli --version
@@ -48,6 +49,7 @@ Usage:
 Options:
   -e --example  Clone an example project.
   -h --help     Show this screen.
+  -s --silent   Save private key instead of printing it.
   -v --verbose  Verbose output.
   --version     Show version.
 ";
@@ -66,6 +68,8 @@ struct Args {
     flag_example: bool,
     flag_h: bool,
     flag_help: bool,
+    flag_s: bool,
+    flag_silent: bool,
     flag_v: bool,
     flag_verbose: bool,
     flag_version: bool,
@@ -99,30 +103,38 @@ fn main() {
 
         if args.cmd_add {
             let cert = try_exit(auth.add(cert_type, name), args.flag_v || args.flag_verbose);
-            println!("Please distribute this certificate securely.
+            if args.flag_s || args.flag_silent {
+                try_exit(cert.save_secret(&format!("{}.crt", name)), args.flag_v || args.flag_verbose);
+            } else {
+                println!("Please distribute this certificate securely.
 
 ------------------------COPY BELOW THIS LINE-------------------------
 {}
 ------------------------COPY ABOVE THIS LINE-------------------------", cert.public());
+            }
         }
         else if args.cmd_delete {
-            println!("Are you sure you want to delete this certificate?");
-            loop {
-                println!("Please enter [y/n]: ");
-                let mut input = String::new();
-                match io::stdin().read_line(&mut input) {
-                    Ok(_) => match { input.as_ref() as &str }.trim() {
-                        "y" => {
-                            try_exit(auth.delete(name), args.flag_v || args.flag_verbose);
-                            break;
+            if args.flag_s || args.flag_silent {
+                try_exit(auth.delete(name), args.flag_v || args.flag_verbose);
+            } else {
+                println!("Are you sure you want to delete this certificate?");
+                loop {
+                    println!("Please enter [y/n]: ");
+                    let mut input = String::new();
+                    match io::stdin().read_line(&mut input) {
+                        Ok(_) => match { input.as_ref() as &str }.trim() {
+                            "y" => {
+                                try_exit(auth.delete(name), args.flag_v || args.flag_verbose);
+                                break;
+                            },
+                            "n" => break,
+                            _ => (),
                         },
-                        "n" => break,
-                        _ => (),
-                    },
-                    Err(e) => {
-                        println!("Stdin error: {}", e);
-                        exit(1);
-                    },
+                        Err(e) => {
+                            println!("Stdin error: {}", e);
+                            exit(1);
+                        },
+                    }
                 }
             }
         }
@@ -139,12 +151,13 @@ fn main() {
     }
 }
 
-fn try_exit<T>(r: Result<T>, verbose: bool) -> T {
+fn try_exit<T, E>(r: StdResult<T, E>, verbose: bool) -> T
+    where E: Into<Error> + Debug + Display {
     if let Err(e) = r {
         println!("{}", e);
 
         if verbose {
-            println!("{:?}", e.cause());
+            println!("{:?}", e);
         }
 
         exit(1);
