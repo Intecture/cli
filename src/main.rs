@@ -31,7 +31,7 @@ use std::path::Path;
 use std::process::exit;
 use std::result::Result as StdResult;
 
-const VERSION: &'static str = "0.1.0";
+const VERSION: &'static str = "0.2.1";
 
 static USAGE: &'static str = "
 Intecture CLI.
