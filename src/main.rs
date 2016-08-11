@@ -110,7 +110,7 @@ fn main() {
 
 ------------------------COPY BELOW THIS LINE-------------------------
 {}
-------------------------COPY ABOVE THIS LINE-------------------------", cert.public());
+------------------------COPY ABOVE THIS LINE-------------------------", cert.secret());
             }
         }
         else if args.cmd_delete {
