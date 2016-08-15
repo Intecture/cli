@@ -38,7 +38,7 @@ Intecture CLI.
 
 Usage:
   incli run [<arg>...]
-  incli init [(-e | --example)] (<name> <lang>)
+  incli init [(-e | --example)] <name> <lang>
   incli host (add | delete | bootstrap) [(-s | --silent)] <hostname>
   incli host list
   incli user (add | delete) [(-s | --silent)] <username>
