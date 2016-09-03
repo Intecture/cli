@@ -7,7 +7,7 @@
 // modified, or distributed except according to those terms.
 
 use config::Config;
-use error::{Error, Result};
+use error::Result;
 use language::Language;
 use std::{error, fmt};
 use std::fs::{create_dir, metadata};
@@ -36,7 +36,7 @@ impl Project {
         let language: &Language;
         match Language::find(&conf.language) {
             Some(l) => language = l,
-            None => return Err(Error::from(ProjectError::InvalidLang)),
+            None => return Err(ProjectError::InvalidLang.into()),
         }
 
         let mut artifact = conf.artifact;
@@ -60,12 +60,12 @@ impl Project {
         let language: &Language;
         match Language::find(lang_name) {
             Some(l) => language = l,
-            None => return Err(Error::from(ProjectError::InvalidLang)),
+            None => return Err(ProjectError::InvalidLang.into()),
         }
 
         // Make sure folder doesn't already exist
         if metadata(&project_path).is_ok() {
-            return Err(Error::from(ProjectError::ProjectExists));
+            return Err(ProjectError::ProjectExists.into());
         }
 
         // Clone example project or create empty project folder
@@ -97,7 +97,25 @@ If you do not have a user certificate, obtain one from your administrator.", pro
                 cmd.arg(&self.artifact);
                 cmd
             },
-            None => Command::new(&self.artifact),
+            None => {
+                // Attempt to build project before running it
+                match self.language.name {
+                    "c" if metadata("Makefile").is_ok() => {
+                        let output = try!(Command::new("make").output());
+                        if !output.status.success() {
+                            return Err(ProjectError::BuildFailed(try!(String::from_utf8(output.stderr))).into());
+                        }
+                    },
+                    "rust" => {
+                        let output = try!(Command::new("cargo").arg("build").output());
+                        if !output.status.success() {
+                            return Err(ProjectError::BuildFailed(try!(String::from_utf8(output.stderr))).into());
+                        }
+                    },
+                    _ => ()
+                }
+                Command::new(&self.artifact)
+            },
         };
 
         // Stream command pipes to stdout and strerr
@@ -110,6 +128,7 @@ If you do not have a user certificate, obtain one from your administrator.", pro
 
 #[derive(Debug)]
 pub enum ProjectError {
+    BuildFailed(String),
     InvalidLang,
     ProjectExists,
 }
@@ -117,6 +136,7 @@ pub enum ProjectError {
 impl fmt::Display for ProjectError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            ProjectError::BuildFailed(ref e) => write!(f, "Could not build project: {}", e),
             ProjectError::InvalidLang => write!(f, "Invalid language"),
             ProjectError::ProjectExists => write!(f, "Project already exists"),
         }
@@ -126,6 +146,7 @@ impl fmt::Display for ProjectError {
 impl error::Error for ProjectError {
     fn description(&self) -> &str {
         match *self {
+            ProjectError::BuildFailed(_) => "Could not build project",
             ProjectError::InvalidLang => "Invalid language",
             ProjectError::ProjectExists => "Project already exists",
         }
