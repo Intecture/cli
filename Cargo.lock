@@ -3,7 +3,7 @@ name = "intecture-cli"
 version = "0.2.1"
 dependencies = [
  "czmq 0.0.5 (git+https://github.com/petehayes102/rust-czmq.git?tag=0.0.5)",
- "docopt 0.6.82 (registry+https://github.com/rust-lang/crates.io-index)",
+ "docopt 0.6.83 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -43,13 +43,13 @@ dependencies = [
 
 [[package]]
 name = "docopt"
-version = "0.6.82"
+version = "0.6.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "lazy_static 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.73 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "strsim 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "strsim 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -116,7 +116,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "strsim"
-version = "0.3.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
