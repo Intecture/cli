@@ -153,6 +153,7 @@ impl error::Error for Error {
 mod tests {
     use config::Config;
     use czmq::{ZCert, ZMsg, ZSys};
+    use language::Language;
     use std::thread::spawn;
     use super::*;
     use tempdir::TempDir;
@@ -165,7 +166,10 @@ mod tests {
         let mut path = dir.path().to_owned();
 
         path.push("project.json");
-        let config = Config::new("rust", "target/debug/hello_world", "127.0.0.1:7101");
+        let config = Config {
+            language: Language::Rust,
+            auth_server: "127.0.0.1:7101".into()
+        };
         config.save(&path).unwrap();
         path.pop();
 
@@ -179,7 +183,6 @@ mod tests {
         cert.save_secret(path.to_str().unwrap()).unwrap();
         path.pop();
 
-        // assert!(Auth::new(&path).is_ok());
         Auth::new(&path).unwrap();
     }
 

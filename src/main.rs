@@ -23,14 +23,14 @@ mod project;
 
 use auth::Auth;
 use docopt::Docopt;
-use error::Error;
+use error::Result;
+use language::Language;
 use project::Project;
 use std::{env, io};
-use std::fmt::{Debug, Display};
 use std::path::Path;
 use std::process::exit;
-use std::result::Result as StdResult;
 
+const API_VERSION: &'static str = "{ git = \"https://github.com/intecture/api\" }";
 const VERSION: &'static str = "0.2.1";
 
 static USAGE: &'static str = "
@@ -38,7 +38,7 @@ Intecture CLI.
 
 Usage:
   incli run [<arg>...]
-  incli init [(-e | --example)] <name> <lang>
+  incli init <name> <lang>
   incli host (add | delete | bootstrap) [(-s | --silent)] <hostname>
   incli host list
   incli user (add | delete) [(-s | --silent)] <username>
@@ -47,7 +47,6 @@ Usage:
   incli --version
 
 Options:
-  -e --example  Clone an example project.
   -h --help     Show this screen.
   -s --silent   Save private key instead of printing it.
   -v --verbose  Verbose output.
@@ -64,8 +63,6 @@ struct Args {
     cmd_list: bool,
     cmd_run: bool,
     cmd_user: bool,
-    flag_e: bool,
-    flag_example: bool,
     flag_h: bool,
     flag_help: bool,
     flag_s: bool,
@@ -85,26 +82,39 @@ fn main() {
         .and_then(|d| d.decode())
         .unwrap_or_else(|e| e.exit());
 
+    if let Err(e) = run(&args) {
+        println!("{}", e);
+
+        if args.flag_v || args.flag_verbose {
+            println!("{:?}", e);
+        }
+
+        exit(1);
+    }
+}
+
+fn run(args: &Args) -> Result<()> {
     if args.flag_version {
         println!("{}", VERSION);
     }
     else if args.cmd_run {
-        let project = try_exit(Project::load(&mut env::current_dir().unwrap()), args.flag_v || args.flag_verbose);
-        try_exit(project.run(&args.arg_arg), args.flag_v || args.flag_verbose);
+        let project = try!(Project::load(&mut env::current_dir().unwrap()));
+        let args_deref: Vec<&str> = args.arg_arg.iter().map(AsRef::as_ref).collect();
+        try!(project.run(&args_deref));
     }
     else if args.cmd_init {
-        try_exit(Project::create(&Path::new(&args.arg_name), &args.arg_lang, args.flag_e || args.flag_example), args.flag_v || args.flag_verbose);
+        try!(Project::create(&Path::new(&args.arg_name), try!(Language::from_str(&args.arg_lang))));
     }
     else if args.cmd_host || args.cmd_user {
         let cert_type = if args.cmd_host { "host" } else { "user" };
         let name = if args.cmd_host { &args.arg_hostname } else { &args.arg_username };
 
-        let auth = try_exit(Auth::new(&env::current_dir().unwrap()), args.flag_v || args.flag_verbose);
+        let auth = try!(Auth::new(&env::current_dir().unwrap()));
 
         if args.cmd_add {
-            let cert = try_exit(auth.add(cert_type, name), args.flag_v || args.flag_verbose);
+            let cert = try!(auth.add(cert_type, name));
             if args.flag_s || args.flag_silent {
-                try_exit(cert.save_secret(&format!("{}.crt", name)), args.flag_v || args.flag_verbose);
+                try!(cert.save_secret(&format!("{}.crt", name)));
             } else {
                 println!("Please distribute this certificate securely.
 
@@ -115,7 +125,7 @@ fn main() {
         }
         else if args.cmd_delete {
             if args.flag_s || args.flag_silent {
-                try_exit(auth.delete(name), args.flag_v || args.flag_verbose);
+                try!(auth.delete(name));
             } else {
                 println!("Are you sure you want to delete this certificate?");
                 loop {
@@ -124,7 +134,7 @@ fn main() {
                     match io::stdin().read_line(&mut input) {
                         Ok(_) => match { input.as_ref() as &str }.trim() {
                             "y" => {
-                                try_exit(auth.delete(name), args.flag_v || args.flag_verbose);
+                                try!(auth.delete(name));
                                 break;
                             },
                             "n" => break,
@@ -139,7 +149,7 @@ fn main() {
             }
         }
         else if args.cmd_list {
-            let names = try_exit(auth.list(cert_type), args.flag_v || args.flag_verbose);
+            let names = try!(auth.list(cert_type));
 
             for name in names {
                 println!("{}", name);
@@ -149,19 +159,6 @@ fn main() {
             unimplemented!();
         }
     }
-}
 
-fn try_exit<T, E>(r: StdResult<T, E>, verbose: bool) -> T
-    where E: Into<Error> + Debug + Display {
-    if let Err(e) = r {
-        println!("{}", e);
-
-        if verbose {
-            println!("{:?}", e);
-        }
-
-        exit(1);
-    }
-
-    r.unwrap()
+    Ok(())
 }

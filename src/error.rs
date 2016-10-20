@@ -8,6 +8,7 @@
 
 use auth;
 use czmq;
+use language::LanguageError;
 use project::ProjectError;
 use rustc_serialize::json::{DecoderError, EncoderError};
 use std::{error, fmt, io, result, string};
@@ -23,6 +24,7 @@ pub enum Error {
     Decoder(DecoderError),
     Encoder(EncoderError),
     Io(io::Error),
+    Language(LanguageError),
     Project(ProjectError),
     StringConvert(string::FromUtf8Error),
     ZDaemon(zdaemon::Error),
@@ -36,6 +38,7 @@ impl fmt::Display for Error {
             Error::Decoder(ref e) => write!(f, "Decoder error: {}", e),
             Error::Encoder(ref e) => write!(f, "Encoder error: {}", e),
             Error::Io(ref e) => write!(f, "IO error: {}", e),
+            Error::Language(ref e) => write!(f, "Language error: {}", e),
             Error::Project(ref e) => write!(f, "Project error: {}", e),
             Error::StringConvert(ref e) => write!(f, "String conversion error: {}", e),
             Error::ZDaemon(ref e) => write!(f, "ZDaemon error: {}", e),
@@ -51,6 +54,7 @@ impl error::Error for Error {
             Error::Decoder(ref e) => e.description(),
             Error::Encoder(ref e) => e.description(),
             Error::Io(ref e) => e.description(),
+            Error::Language(ref e) => e.description(),
             Error::Project(ref e) => e.description(),
             Error::StringConvert(ref e) => e.description(),
             Error::ZDaemon(ref e) => e.description(),
@@ -64,6 +68,7 @@ impl error::Error for Error {
             Error::Decoder(ref e) => Some(e),
             Error::Encoder(ref e) => Some(e),
             Error::Io(ref e) => Some(e),
+            Error::Language(ref e) => Some(e),
             Error::Project(ref e) => Some(e),
             Error::StringConvert(ref e) => Some(e),
             Error::ZDaemon(ref e) => Some(e),
@@ -83,12 +88,6 @@ impl From<czmq::Error> for Error {
     }
 }
 
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
-        Error::Io(err)
-    }
-}
-
 impl From<DecoderError> for Error {
     fn from(err: DecoderError) -> Error {
         Error::Decoder(err)
@@ -98,6 +97,18 @@ impl From<DecoderError> for Error {
 impl From<EncoderError> for Error {
     fn from(err: EncoderError) -> Error {
         Error::Encoder(err)
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
+        Error::Io(err)
+    }
+}
+
+impl From<LanguageError> for Error {
+    fn from(err: LanguageError) -> Error {
+        Error::Language(err)
     }
 }
 

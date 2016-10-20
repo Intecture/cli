@@ -6,23 +6,13 @@
 // https://www.tldrlegal.com/l/mpl-2.0>. This file may not be copied,
 // modified, or distributed except according to those terms.
 
+use language::Language;
 use zdaemon::ConfigFile;
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct Config {
-    pub language: String,
-    pub artifact: String,
+    pub language: Language,
     pub auth_server: String,
 }
 
 impl ConfigFile for Config {}
-
-impl Config {
-    pub fn new(language: &str, artifact: &str, auth_server: &str) -> Config {
-        Config {
-            language: language.into(),
-            artifact: artifact.into(),
-            auth_server: auth_server.into(),
-        }
-    }
-}

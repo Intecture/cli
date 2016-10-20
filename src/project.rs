@@ -8,136 +8,111 @@
 
 use config::Config;
 use error::Result;
-use language::Language;
-use std::{error, fmt};
-use std::fs::{create_dir, metadata};
+use language::{Language, LanguageProject, CProject, PhpProject, RustProject};
+use std::{error, fmt, fs};
+use std::io::Write;
 use std::path::Path;
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{Command, ExitStatus};
 use zdaemon::ConfigFile;
-
-const EXAMPLE_REPO: &'static str = "https://github.com/intecture/examples";
 
 #[derive(Debug)]
 pub struct Project {
     pub name: String,
-    pub language: &'static Language,
-    pub artifact: String,
+    pub language: Language,
 }
 
 impl Project {
-    pub fn load(project_path: &Path) -> Result<Project> {
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Project> {
         // Load config
-        let mut buf = project_path.to_path_buf();
+        let mut buf = path.as_ref().to_owned();
         buf.push("project.json");
         let conf = try!(Config::load(&buf));
 
-        let project_name = project_path.iter().last().unwrap().to_str().unwrap();
-
-        let language: &Language;
-        match Language::find(&conf.language) {
-            Some(l) => language = l,
-            None => return Err(ProjectError::InvalidLang.into()),
-        }
-
-        let mut artifact = conf.artifact;
-
-        // If we are calling a binary and the user hasn't specified a
-        // path to that binary, prepend "./" so that it can be
-        // invoked as a command.
-        if language.runtime.is_none() && !&artifact.chars().any(|c: char| c == '/') {
-            artifact = format!("./{}", artifact);
-        }
-
         Ok(Project {
-            name: project_name.to_string(),
-            language: language,
-            artifact: artifact,
+            name: try!(try!(buf.file_name().ok_or(ProjectError::InvalidPath))
+                               .to_str().ok_or(ProjectError::InvalidPath)).into(),
+            language: conf.language,
         })
     }
 
-    pub fn create<P: AsRef<Path>>(project_path: P, lang_name: &str, is_example: bool) -> Result<()> {
-        // Check that language is valid
-        let language: &Language;
-        match Language::find(lang_name) {
-            Some(l) => language = l,
-            None => return Err(ProjectError::InvalidLang.into()),
-        }
+    pub fn create<P: AsRef<Path>>(project_path: P, language: Language) -> Result<Project> {
+        let mut path = project_path.as_ref().to_owned();
 
         // Make sure folder doesn't already exist
-        if metadata(&project_path).is_ok() {
+        if path.exists() {
             return Err(ProjectError::ProjectExists.into());
         }
 
-        // Clone example project or create empty project folder
-        if is_example {
-            Command::new("git").args(&["clone", "-b", lang_name, EXAMPLE_REPO, project_path.as_ref().to_str().unwrap()])
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .output().unwrap();
-        } else {
-            try!(create_dir(&project_path));
+        path.push("data/hosts");
+        try!(fs::create_dir_all(&path));
+        path.pop();
+        path.pop();
+
+        path.push("payloads");
+        try!(fs::create_dir(&path));
+        path.pop();
+
+        // Create git repo
+        let output = try!(Command::new("git").args(&["init", path.to_str().unwrap()]).output());
+        if !output.status.success() {
+            return Err(ProjectError::CreateFailed(try!(String::from_utf8(output.stderr))).into());
+        }
+
+        // Update .gitignore
+        path.push(".gitignore");
+        let mut fh = try!(fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path));
+        try!(fh.write_all(b"user.crt\nauth.crt\n"));
+        path.pop();
+
+        match language {
+            Language::C => try!(CProject::init(&path)),
+            Language::Php => try!(PhpProject::init(&path)),
+            Language::Rust => try!(RustProject::init(&path)),
         }
 
         // Create project.json
-        let project_conf = Config::new(lang_name, language.artifact, "auth.example.com:7101");
-        let mut buf = project_path.as_ref().to_path_buf();
-        buf.push("project.json");
-        try!(project_conf.save(&buf));
+        path.push("project.json");
+        let project_conf = Config {
+            language: language,
+            auth_server: "auth.example.com:7101".into(),
+        };
+        try!(project_conf.save(&path));
+        path.pop();
 
         println!("Remember to copy your user certificate to {}/user.crt.
-If you do not have a user certificate, obtain one from your administrator.", project_path.as_ref().to_str().unwrap());
+If you do not have a user certificate, obtain one from your administrator.", path.to_str().unwrap());
 
-        Ok(())
+        Ok(Project {
+            name: try!(try!(path.file_name().ok_or(ProjectError::InvalidPath))
+                                .to_str().ok_or(ProjectError::InvalidPath)).into(),
+            language: project_conf.language,
+        })
     }
 
-    pub fn run(&self, args: &Vec<String>) -> Result<ExitStatus> {
-        let mut cmd = match self.language.runtime {
-            Some(runtime) => {
-                let mut cmd = Command::new(runtime);
-                cmd.arg(&self.artifact);
-                cmd
-            },
-            None => {
-                // Attempt to build project before running it
-                match self.language.name {
-                    "c" if metadata("Makefile").is_ok() => {
-                        let output = try!(Command::new("make").output());
-                        if !output.status.success() {
-                            return Err(ProjectError::BuildFailed(try!(String::from_utf8(output.stderr))).into());
-                        }
-                    },
-                    "rust" => {
-                        let output = try!(Command::new("cargo").arg("build").output());
-                        if !output.status.success() {
-                            return Err(ProjectError::BuildFailed(try!(String::from_utf8(output.stderr))).into());
-                        }
-                    },
-                    _ => ()
-                }
-                Command::new(&self.artifact)
-            },
-        };
-
-        // Stream command pipes to stdout and strerr
-        Ok(try!(cmd.args(args)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()))
+    pub fn run(&self, args: &[&str]) -> Result<ExitStatus> {
+        match self.language {
+            Language::Php => PhpProject::run(args),
+            Language::C => CProject::run(args),
+            Language::Rust => RustProject::run(args),
+        }
     }
 }
 
 #[derive(Debug)]
 pub enum ProjectError {
-    BuildFailed(String),
-    InvalidLang,
+    CreateFailed(String),
+    InvalidPath,
     ProjectExists,
 }
 
 impl fmt::Display for ProjectError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            ProjectError::BuildFailed(ref e) => write!(f, "Could not build project: {}", e),
-            ProjectError::InvalidLang => write!(f, "Invalid language"),
+            ProjectError::CreateFailed(ref e) => write!(f, "Could not create project: {}", e),
+            ProjectError::InvalidPath => write!(f, "Invalid path to project"),
             ProjectError::ProjectExists => write!(f, "Project already exists"),
         }
     }
@@ -146,8 +121,8 @@ impl fmt::Display for ProjectError {
 impl error::Error for ProjectError {
     fn description(&self) -> &str {
         match *self {
-            ProjectError::BuildFailed(_) => "Could not build project",
-            ProjectError::InvalidLang => "Invalid language",
+            ProjectError::CreateFailed(_) => "Could not create project",
+            ProjectError::InvalidPath => "Invalid path to project",
             ProjectError::ProjectExists => "Project already exists",
         }
     }
@@ -155,9 +130,9 @@ impl error::Error for ProjectError {
 
 #[cfg(test)]
 mod tests {
+    use language::Language;
     use std::fs::{File, metadata};
     use std::io::Write;
-    use std::path::Path;
     use super::*;
     use tempdir::TempDir;
 
@@ -168,44 +143,31 @@ mod tests {
     }
 
     #[test]
-    fn test_load_nolang() {
-        let dir = TempDir::new("test_load_nolang").unwrap();
-
-        let mut buf = dir.path().to_path_buf();
-        buf.push("project.json");
-
-        let mut file = File::create(&buf).unwrap();
-        file.write_all("{\"language\":\"NOLANG\",\"artifact\":\"none\"}".as_bytes()).unwrap();
-
-        assert!(Project::load(&buf).is_err());
-    }
-
-    #[test]
     fn test_load_ok() {
         let dir = TempDir::new("test_load_ok").unwrap();
-        let mut file = File::create(&format!("{}/project.json", dir.path().to_str().unwrap())).unwrap();
-        file.write_all("{\"language\":\"php\",\"artifact\":\"index.php\",\"auth_server\":\"auth.example.com:7101\"}".as_bytes()).unwrap();
-        assert!(Project::load(dir.path()).is_ok());
-    }
+        let mut path = dir.path().to_owned();
 
-    #[test]
-    fn test_create_nolang() {
-        assert!(Project::create(Path::new("/fake/path"), "NOLANG", false).is_err());
+        path.push("project.json");
+        let mut file = File::create(&path).unwrap();
+        file.write_all("{\"language\":\"Php\",\"auth_server\":\"auth.example.com:7101\"}".as_bytes()).unwrap();
+        path.pop();
+
+        assert!(Project::load(&path).is_ok());
     }
 
     #[test]
     fn test_create_exists() {
         let dir = TempDir::new("test_create_exists").unwrap();
-        assert!(Project::create(dir.path(), "php", false).is_err());
+        assert!(Project::create(dir.path(), Language::Php).is_err());
     }
 
     #[test]
     fn test_create_ok() {
         let dir = TempDir::new("test_create_ok").unwrap();
-        let mut buf = dir.path().to_path_buf();
+        let mut buf = dir.path().to_owned();
         buf.push("proj_dir");
 
-        assert!(Project::create(&buf, "php", true).is_ok());
+        assert!(Project::create(&buf, Language::Rust).is_ok());
         assert!(metadata(format!("{}/project.json", buf.to_str().unwrap())).is_ok());
     }
 }
