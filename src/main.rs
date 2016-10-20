@@ -8,6 +8,7 @@
 
 extern crate czmq;
 extern crate docopt;
+extern crate inapi;
 extern crate rustc_serialize;
 #[cfg(test)]
 extern crate tempdir;
@@ -16,15 +17,16 @@ extern crate zdaemon;
 
 mod auth;
 mod cert;
-mod config;
 mod error;
 mod language;
+mod payload;
 mod project;
 
 use auth::Auth;
 use docopt::Docopt;
 use error::Result;
-use language::Language;
+use language::language_from_str;
+use payload::Payload;
 use project::Project;
 use std::{env, io};
 use std::path::Path;
@@ -38,7 +40,9 @@ Intecture CLI.
 
 Usage:
   incli run [<arg>...]
-  incli init <name> <lang>
+  incli project init <name> <lang>
+  incli payload init <name> <lang>
+  incli payload build [<names>...]
   incli host (add | delete | bootstrap) [(-s | --silent)] <hostname>
   incli host list
   incli user (add | delete) [(-s | --silent)] <username>
@@ -57,10 +61,13 @@ Options:
 struct Args {
     cmd_add: bool,
     cmd_bootstrap: bool,
+    cmd_build: bool,
     cmd_delete: bool,
     cmd_host: bool,
     cmd_init: bool,
     cmd_list: bool,
+    cmd_payload: bool,
+    cmd_project: bool,
     cmd_run: bool,
     cmd_user: bool,
     flag_h: bool,
@@ -74,6 +81,7 @@ struct Args {
     arg_hostname: String,
     arg_lang: String,
     arg_name: String,
+    arg_names: Option<Vec<String>>,
     arg_username: String,
 }
 
@@ -102,8 +110,19 @@ fn run(args: &Args) -> Result<()> {
         let args_deref: Vec<&str> = args.arg_arg.iter().map(AsRef::as_ref).collect();
         try!(project.run(&args_deref));
     }
-    else if args.cmd_init {
-        try!(Project::create(&Path::new(&args.arg_name), try!(Language::from_str(&args.arg_lang))));
+    else if args.cmd_project && args.cmd_init {
+        try!(Project::create(&Path::new(&args.arg_name), try!(language_from_str(&args.arg_lang))));
+    }
+    else if args.cmd_payload {
+        if args.cmd_init {
+            try!(Payload::create(&Path::new(&args.arg_name), try!(language_from_str(&args.arg_lang))));
+        }
+        else if args.cmd_build {
+            let payloads = try!(Payload::find(".", args.arg_names.as_ref()));
+            for payload in payloads {
+                try!(payload.build());
+            }
+        }
     }
     else if args.cmd_host || args.cmd_user {
         let cert_type = if args.cmd_host { "host" } else { "user" };

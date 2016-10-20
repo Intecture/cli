@@ -13,32 +13,25 @@ mod rust;
 pub use self::c::CProject;
 pub use self::php::PhpProject;
 pub use self::rust::RustProject;
+pub use inapi::Language;
 
 use error::Result;
 use std::{error, fmt};
 use std::path::Path;
 use std::process::ExitStatus;
 
-#[derive(Clone, Debug, PartialEq, RustcDecodable, RustcEncodable)]
-pub enum Language {
-    C,
-    Php,
-    Rust,
-}
-
-impl Language {
-    pub fn from_str(lang: &str) -> Result<Language> {
-        match lang {
-            "c" => Ok(Language::C),
-            "php" => Ok(Language::Php),
-            "rust" => Ok(Language::Rust),
-            _ => Err(LanguageError::UnknownLanguage(lang.into()).into()),
-        }
+pub fn language_from_str(lang: &str) -> Result<Language> {
+    match lang {
+        "c" => Ok(Language::C),
+        "php" => Ok(Language::Php),
+        "rust" => Ok(Language::Rust),
+        _ => Err(LanguageError::UnknownLanguage(lang.into()).into()),
     }
 }
 
 pub trait LanguageProject {
-    fn init<P: AsRef<Path>>(path: P) -> Result<()>;
+    fn init_payload<P: AsRef<Path>>(path: P) -> Result<()>;
+    fn init_project<P: AsRef<Path>>(path: P) -> Result<()>;
     fn run(args: &[&str]) -> Result<ExitStatus>;
 }
 
@@ -75,9 +68,9 @@ mod tests {
 
     #[test]
     fn test_language_from_str() {
-        assert!(Language::from_str("c").is_ok());
-        assert!(Language::from_str("php").is_ok());
-        assert!(Language::from_str("rust").is_ok());
-        assert!(Language::from_str("bang!").is_err());
+        assert!(language_from_str("c").is_ok());
+        assert!(language_from_str("php").is_ok());
+        assert!(language_from_str("rust").is_ok());
+        assert!(language_from_str("bang!").is_err());
     }
 }

@@ -14,7 +14,37 @@ use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
 use super::{LanguageProject, LanguageError};
 
-const BOOTSTRAP_SOURCE: &'static [u8] = b"#[macro_use]
+const PAYLOAD_SOURCE: &'static [u8] = b"#[macro_use]
+extern crate inapi;
+
+use inapi::*;
+use std::env;
+use std::process::exit;
+
+fn main() {
+    let args: Vec<_> = env::args().collect();
+    if args.len() < 3 {
+        println!(\"Missing Host endpoints\");
+        exit(1);
+    }
+
+    if let Err(e) = run(&args[1], &args[2]) {
+        println!(\"\"); // Output line break
+        println!(\"{}\", e);
+        exit(1);
+    }
+}
+
+fn run(api_endpoint: &str, file_endpoint: &str) -> Result<(), Error> {
+    let mut host = try!(Host::connect_payload(api_endpoint, file_endpoint));
+
+    // Do stuff...
+
+    Ok(())
+}
+";
+
+const PROJECT_SOURCE: &'static [u8] = b"#[macro_use]
 extern crate inapi;
 
 use inapi::{Error, Host, Payload};
@@ -55,8 +85,8 @@ fn run(name: &str) -> Result<(), Error> {
 
 pub struct RustProject;
 
-impl LanguageProject for RustProject {
-    fn init<P: AsRef<Path>>(path: P) -> Result<()> {
+impl RustProject {
+    fn init<P: AsRef<Path>>(path: P, source: &[u8]) -> Result<()> {
         let mut buf = path.as_ref().to_owned();
 
         // Init new Cargo project
@@ -76,11 +106,23 @@ impl LanguageProject for RustProject {
         try!(fh.write_all(format!("intecture-api = {}", API_VERSION).as_bytes()));
         buf.pop();
 
-        // Write bootstrap source code to main.rs
+        // Write source code to main.rs
         buf.push("src/main.rs");
         let mut fh = try!(fs::OpenOptions::new().write(true).open(&buf));
-        try!(fh.write_all(BOOTSTRAP_SOURCE));
+        try!(fh.write_all(source));
 
+        Ok(())
+    }
+}
+
+impl LanguageProject for RustProject {
+    fn init_payload<P: AsRef<Path>>(path: P) -> Result<()> {
+        try!(RustProject::init(path, PAYLOAD_SOURCE));
+        Ok(())
+    }
+
+    fn init_project<P: AsRef<Path>>(path: P) -> Result<()> {
+        try!(RustProject::init(path, PROJECT_SOURCE));
         Ok(())
     }
 
@@ -97,7 +139,11 @@ impl LanguageProject for RustProject {
 #[cfg(test)]
 mod tests {
     use language::Language;
+    use payload::Payload;
     use project::Project;
+    use std::{fs, str};
+    use std::io::Read;
+    use super::{PAYLOAD_SOURCE, PROJECT_SOURCE};
     use tempdir::TempDir;
 
     #[test]
@@ -105,6 +151,7 @@ mod tests {
         let dir = TempDir::new("test_rust_init").unwrap();
         let mut path = dir.path().to_owned();
 
+        // Init project
         path.push("proj");
         Project::create(&path, Language::Rust).unwrap();
 
@@ -113,6 +160,25 @@ mod tests {
         path.pop();
 
         path.push("src/main.rs");
+        let mut fh = fs::File::open(&path).unwrap();
+        let mut contents = String::new();
+        fh.read_to_string(&mut contents).unwrap();
+        assert_eq!(contents, str::from_utf8(PROJECT_SOURCE).unwrap());
+        path.pop();
+        path.pop();
+
+        // Init payload
+        path.push("payloads/nginx");
+        Payload::create(&path, Language::Rust).unwrap();
+
+        path.push("Cargo.toml");
         assert!(path.exists());
+        path.pop();
+
+        path.push("src/main.rs");
+        let mut fh = fs::File::open(&path).unwrap();
+        let mut contents = String::new();
+        fh.read_to_string(&mut contents).unwrap();
+        assert_eq!(contents, str::from_utf8(PAYLOAD_SOURCE).unwrap());
     }
 }

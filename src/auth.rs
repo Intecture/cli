@@ -7,7 +7,7 @@
 // modified, or distributed except according to those terms.
 
 use cert::Cert;
-use config::Config;
+use inapi::ProjectConfig;
 use czmq::{ZCert, ZFrame, ZMsg, ZSock, ZSockType};
 use error::Result;
 use std::{error, fmt};
@@ -23,7 +23,7 @@ impl Auth {
         let mut buf = project_path.as_ref().to_owned();
 
         buf.push("project.json");
-        let config = try!(Config::load(&buf));
+        let config = try!(ProjectConfig::load(&buf));
         buf.pop();
 
         buf.push("auth.crt");
@@ -151,7 +151,7 @@ impl error::Error for Error {
 
 #[cfg(test)]
 mod tests {
-    use config::Config;
+    use inapi::ProjectConfig;
     use czmq::{ZCert, ZMsg, ZSys};
     use language::Language;
     use std::thread::spawn;
@@ -166,7 +166,7 @@ mod tests {
         let mut path = dir.path().to_owned();
 
         path.push("project.json");
-        let config = Config {
+        let config = ProjectConfig {
             language: Language::Rust,
             auth_server: "127.0.0.1:7101".into()
         };

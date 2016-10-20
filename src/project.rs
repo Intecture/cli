@@ -6,8 +6,8 @@
 // https://www.tldrlegal.com/l/mpl-2.0>. This file may not be copied,
 // modified, or distributed except according to those terms.
 
-use config::Config;
 use error::Result;
+use inapi::ProjectConfig;
 use language::{Language, LanguageProject, CProject, PhpProject, RustProject};
 use std::{error, fmt, fs};
 use std::io::Write;
@@ -26,7 +26,7 @@ impl Project {
         // Load config
         let mut buf = path.as_ref().to_owned();
         buf.push("project.json");
-        let conf = try!(Config::load(&buf));
+        let conf = try!(ProjectConfig::load(&buf));
 
         Ok(Project {
             name: try!(try!(buf.file_name().ok_or(ProjectError::InvalidPath))
@@ -68,14 +68,14 @@ impl Project {
         path.pop();
 
         match language {
-            Language::C => try!(CProject::init(&path)),
-            Language::Php => try!(PhpProject::init(&path)),
-            Language::Rust => try!(RustProject::init(&path)),
+            Language::C => try!(CProject::init_project(&path)),
+            Language::Php => try!(PhpProject::init_project(&path)),
+            Language::Rust => try!(RustProject::init_project(&path)),
         }
 
         // Create project.json
         path.push("project.json");
-        let project_conf = Config {
+        let project_conf = ProjectConfig {
             language: language,
             auth_server: "auth.example.com:7101".into(),
         };

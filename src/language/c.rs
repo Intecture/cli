@@ -25,7 +25,32 @@ clean:
 \trm $(P)
 ";
 
-const BOOTSTRAP_SOURCE: &'static [u8] = b"#include <assert.h>
+const PAYLOAD_SOURCE: &'static [u8] = b"#include <stdio.h>
+#include <stdlib.h>
+#include <inapi.h>
+
+int main (int argc, char *argv[]) {
+    if (argc < 2) {
+        printf(\"Missing Host endpoints\\n\");
+        return 1;
+    }
+
+    printf(\"Connecting to host...\");
+    Host *host = host_connect_payload(argv[1], argv[2]);
+    if (host) {
+        printf(\"done\\n\");
+    } else {
+        printf(\"\\nCouldn't connect to host: %s\\n\", geterr());
+        return 1;
+    }
+
+    // Do stuff...
+
+    return 0;
+}
+";
+
+const PROJECT_SOURCE: &'static [u8] = b"#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,11 +104,11 @@ int main (int argc, char *argv[]) {
 
 pub struct CProject;
 
-impl LanguageProject for CProject {
-    fn init<P: AsRef<Path>>(path: P) -> Result<()> {
+impl CProject {
+    fn init<P: AsRef<Path>>(path: P, source: &[u8]) -> Result<()> {
         let mut buf = path.as_ref().to_owned();
 
-        // Add bootstrap binary .gitignore
+        // Add binary .gitignore
         buf.push(".gitignore");
         let mut fh = try!(fs::OpenOptions::new()
             .create(true)
@@ -101,11 +126,23 @@ impl LanguageProject for CProject {
         buf.push("src");
         try!(fs::create_dir(&buf));
 
-        // Write bootstrap source code to main.c
+        // Write source code to main.c
         buf.push("main.c");
         let mut fh = try!(fs::File::create(&buf));
-        try!(fh.write_all(BOOTSTRAP_SOURCE));
+        try!(fh.write_all(source));
 
+        Ok(())
+    }
+}
+
+impl LanguageProject for CProject {
+    fn init_payload<P: AsRef<Path>>(path: P) -> Result<()> {
+        try!(CProject::init(path, PAYLOAD_SOURCE));
+        Ok(())
+    }
+
+    fn init_project<P: AsRef<Path>>(path: P) -> Result<()> {
+        try!(CProject::init(path, PROJECT_SOURCE));
         Ok(())
     }
 
@@ -129,7 +166,11 @@ impl LanguageProject for CProject {
 #[cfg(test)]
 mod tests {
     use language::Language;
+    use payload::Payload;
     use project::Project;
+    use std::{fs, str};
+    use std::io::Read;
+    use super::{PAYLOAD_SOURCE, PROJECT_SOURCE};
     use tempdir::TempDir;
 
     #[test]
@@ -137,6 +178,7 @@ mod tests {
         let dir = TempDir::new("test_c_init").unwrap();
         let mut path = dir.path().to_owned();
 
+        // Init project
         path.push("proj");
         Project::create(&path, Language::C).unwrap();
 
@@ -145,6 +187,25 @@ mod tests {
         path.pop();
 
         path.push("src/main.c");
+        let mut fh = fs::File::open(&path).unwrap();
+        let mut contents = String::new();
+        fh.read_to_string(&mut contents).unwrap();
+        assert_eq!(contents, str::from_utf8(PROJECT_SOURCE).unwrap());
+        path.pop();
+        path.pop();
+
+        // Init payload
+        path.push("payloads/nginx");
+        Payload::create(&path, Language::C).unwrap();
+
+        path.push("Makefile");
         assert!(path.exists());
+        path.pop();
+
+        path.push("src/main.c");
+        let mut fh = fs::File::open(&path).unwrap();
+        let mut contents = String::new();
+        fh.read_to_string(&mut contents).unwrap();
+        assert_eq!(contents, str::from_utf8(PAYLOAD_SOURCE).unwrap());
     }
 }
