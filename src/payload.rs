@@ -17,7 +17,7 @@ use zdaemon::ConfigFile;
 pub struct Payload;
 
 impl Payload {
-    pub fn find<P: AsRef<Path>>(payload_path: P, names: Option<&Vec<String>>) -> Result<Vec<inapi::Payload>> {
+    pub fn find<P: AsRef<Path>>(payload_path: P, names: Option<&[&str]>) -> Result<Vec<inapi::Payload>> {
         let mut path = PathBuf::from("payloads");
         if payload_path.as_ref() != Path::new(".") {
             path.push(payload_path);
@@ -27,8 +27,20 @@ impl Payload {
 
         if let Some(n) = names {
             for name in n {
-                path.push(name);
-                payloads.push(try!(inapi::Payload::new(path.to_str().unwrap())));
+                {
+                    let payload_artifact = if path.is_relative() {
+                        name
+                    } else {
+                        path.push(name);
+                        path.to_str().unwrap()
+                    };
+
+                    payloads.push(try!(inapi::Payload::new(payload_artifact)));
+                }
+
+                if path.is_absolute() {
+                    path.pop();
+                }
             }
         } else {
             for entry in try!(fs::read_dir(&path)) {
@@ -155,10 +167,14 @@ mod tests {
         Payload::create(&path, Language::Rust).unwrap();
         path.pop();
 
-        let payloads = Payload::find(&path, None).unwrap();
-        assert_eq!(payloads.len(), 2);
+        path.push("payload3");
+        Payload::create(&path, Language::Rust).unwrap();
+        path.pop();
 
-        let payloads = Payload::find(&path, Some(&vec!["payload2".into()])).unwrap();
-        assert_eq!(payloads.len(), 1);
+        let payloads = Payload::find(&path, None).unwrap();
+        assert_eq!(payloads.len(), 3);
+
+        let payloads = Payload::find(&path, Some(&vec!["payload2".into(), "payload3".into()])).unwrap();
+        assert_eq!(payloads.len(), 2);
     }
 }

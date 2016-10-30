@@ -73,7 +73,7 @@ fn run(name: &str) -> Result<(), Error> {
     // Call payloads
     let data = host.data_owned();
     for name in try!(needarray!(data => \"/_payloads\")) {
-        print!(\"Running payload nginx...\");
+        print!(\"Running payload {}...\", name);
         let payload = try!(Payload::new(try!(needstr!(name))));
         try!(payload.run(&mut host, None));
         println!(\"ok\");

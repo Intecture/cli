@@ -118,7 +118,12 @@ fn run(args: &Args) -> Result<()> {
             try!(Payload::create(&Path::new(&args.arg_name), try!(language_from_str(&args.arg_lang))));
         }
         else if args.cmd_build {
-            let payloads = try!(Payload::find(".", args.arg_names.as_ref()));
+            let payloads = if let Some(ref names) = args.arg_names {
+                let n: Vec<&str> = names.iter().map(|n| &**n).collect();
+                try!(Payload::find(".", Some(&*n)))
+            } else {
+                try!(Payload::find(".", None))
+            };
             for payload in payloads {
                 try!(payload.build());
             }
