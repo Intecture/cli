@@ -35,12 +35,9 @@ int main (int argc, char *argv[]) {
         return 1;
     }
 
-    printf(\"Connecting to host...\");
     Host *host = host_connect_payload(argv[1], argv[2]);
-    if (host) {
-        printf(\"done\\n\");
-    } else {
-        printf(\"\\nCouldn't connect to host: %s\\n\", geterr());
+    if (!host) {
+        printf(\"Couldn't connect to host: %s\\n\", geterr());
         return 1;
     }
 
@@ -83,20 +80,18 @@ int main (int argc, char *argv[]) {
             enum DataType payload_dt = String;
             char *payload_name = get_value(payloads->ptr[i], payload_dt, NULL);
             assert(payload_name);
-            printf(\"Running payload %s...\", payload_name);
+            printf(\"Running payload %s...\\n\", payload_name);
             Payload *payload = payload_new(payload_name);
             if (!payload) {
-                printf(\"\\nCouldn't create payload: %s\\n\", geterr());
+                printf(\"Couldn't create payload: %s\\n\", geterr());
                 return 1;
             }
 
             int rc = payload_run(payload, host, NULL, 0);
             if (rc != 0) {
-                printf(\"\\nCouldn't run payload: %s\\n\", geterr());
+                printf(\"Couldn't run payload: %s\\n\", geterr());
                 return 1;
             }
-
-            printf(\"ok\\n\");
         }
     }
 }

@@ -22,9 +22,7 @@ if ($argc < 2) {
     exit(1);
 }
 
-echo 'Connecting to host...';
 $host = Host::connect_payload($argv[1], $argv[2]);
-echo 'done', PHP_EOL;
 
 // Do stuff...
 ";
@@ -49,10 +47,9 @@ echo 'done', PHP_EOL;
 $data = $host->data();
 if (array_key_exists('_payloads', $data)) {
     foreach ($data['_payloads'] as $payload_name) {
-        echo \"Running payload $payload_name...\";
+        echo \"Running payload $payload_name...\", PHP_EOL;
         $payload = new Payload($payload_name);
         $payload->run($host);
-        echo 'ok', PHP_EOL;
     }
 }
 ";
