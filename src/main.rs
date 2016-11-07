@@ -108,7 +108,11 @@ fn run(args: &Args) -> Result<()> {
     else if args.cmd_run {
         let project = try!(Project::load(&mut env::current_dir().unwrap()));
         let args_deref: Vec<&str> = args.arg_arg.iter().map(AsRef::as_ref).collect();
-        try!(project.run(&args_deref));
+        let status = try!(project.run(&args_deref));
+
+        if !status.success() {
+            exit(status.code().unwrap_or(1));
+        }
     }
     else if args.cmd_project && args.cmd_init {
         try!(Project::create(&Path::new(&args.arg_name), try!(language_from_str(&args.arg_lang))));
