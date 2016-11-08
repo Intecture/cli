@@ -7,13 +7,14 @@
 // modified, or distributed except according to those terms.
 
 use error::Result;
-use std::fs;
+use project::ProjectError;
+use std::{env, fs};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
 use super::{LanguageProject, LanguageError};
 
-const MAKEFILE_SOURCE: &'static [u8] = b"P=bootstrap
+const MAKEFILE_SOURCE: &'static str = "P={{EXEC_NAME}}
 CFLAGS = -g -Wall
 LDLIBS = -I /usr/local/include -L /usr/local/lib -linapi
 CC = gcc
@@ -102,6 +103,9 @@ pub struct CProject;
 impl CProject {
     fn init<P: AsRef<Path>>(path: P, source: &[u8]) -> Result<()> {
         let mut buf = path.as_ref().to_owned();
+        let mut dirname = try!(try!(buf.file_stem().ok_or(ProjectError::InvalidPath))
+                                       .to_str().ok_or(ProjectError::InvalidPath))
+                                       .to_owned();
 
         // Add binary .gitignore
         buf.push(".gitignore");
@@ -109,13 +113,15 @@ impl CProject {
             .create(true)
             .append(true)
             .open(&buf));
-        try!(fh.write_all(b"bootstrap\n"));
+        dirname.push('\n');
+        try!(fh.write_all(dirname.as_bytes()));
+        dirname.pop();
         buf.pop();
 
         // Create Makefile
         buf.push("Makefile");
         let mut fh = try!(fs::File::create(&buf));
-        try!(fh.write_all(MAKEFILE_SOURCE));
+        try!(fh.write_all(MAKEFILE_SOURCE.replace("{{EXEC_NAME}}", &dirname).as_bytes()));
         buf.pop();
 
         buf.push("src");
@@ -142,6 +148,10 @@ impl LanguageProject for CProject {
     }
 
     fn run(args: &[&str]) -> Result<ExitStatus> {
+        let curdir = try!(env::current_dir());
+        let dirname = try!(try!(curdir.file_stem().ok_or(ProjectError::InvalidPath))
+                                      .to_str().ok_or(ProjectError::InvalidPath));
+
         // Attempt to build project before running it
         if fs::metadata("Makefile").is_ok() {
             let output = try!(Command::new("make").output());
@@ -150,7 +160,7 @@ impl LanguageProject for CProject {
             }
         }
 
-        Ok(try!(Command::new("bootstrap")
+        Ok(try!(Command::new(dirname)
                         .args(args)
                         .stdout(Stdio::inherit())
                         .stderr(Stdio::inherit())

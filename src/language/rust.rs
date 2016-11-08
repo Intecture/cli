@@ -8,7 +8,8 @@
 
 use API_VERSION;
 use error::Result;
-use std::fs;
+use project::ProjectError;
+use std::{env, fs};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
@@ -126,8 +127,21 @@ impl LanguageProject for RustProject {
     }
 
     fn run(args: &[&str]) -> Result<ExitStatus> {
-        Ok(try!(Command::new("cargo")
-                        .args(&["run", "--release", "--"])
+        let curdir = try!(env::current_dir());
+        let dirname = try!(try!(curdir.file_stem().ok_or(ProjectError::InvalidPath))
+                                       .to_str().ok_or(ProjectError::InvalidPath));
+
+        let status = try!(Command::new("cargo")
+                                  .args(&["build", "--release"])
+                                  .stdout(Stdio::inherit())
+                                  .stderr(Stdio::inherit())
+                                  .status());
+
+        if !status.success() {
+            return Ok(status);
+        }
+
+        Ok(try!(Command::new(&format!("target/release/{}", dirname))
                         .args(args)
                         .stdout(Stdio::inherit())
                         .stderr(Stdio::inherit())
