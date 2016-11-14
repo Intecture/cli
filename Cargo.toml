@@ -11,7 +11,7 @@ repository = "https://github.com/intecture/cli"
 
 [dependencies]
 
-czmq = { git = "https://github.com/petehayes102/rust-czmq.git", tag = "0.0.5" }
+czmq = { git = "https://github.com/petehayes102/rust-czmq.git", branch = "dev" }
 docopt = "0.6.*"
 intecture-api = { git = "https://github.com/intecture/api.git", branch = "dev" }
 rustc-serialize = "0.3.*"

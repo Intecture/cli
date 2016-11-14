@@ -8,7 +8,7 @@
 
 use cert::Cert;
 use inapi::ProjectConfig;
-use czmq::{ZCert, ZFrame, ZMsg, ZSock, ZSockType};
+use czmq::{ZCert, ZFrame, ZMsg, ZSock, SocketType};
 use error::Result;
 use std::{error, fmt};
 use std::path::Path;
@@ -34,8 +34,8 @@ impl Auth {
         let user_cert = try!(ZCert::load(buf.to_str().unwrap()));
         buf.pop();
 
-        let sock = ZSock::new(ZSockType::REQ);
-        user_cert.apply(&sock);
+        let mut sock = ZSock::new(SocketType::REQ);
+        user_cert.apply(&mut sock);
         sock.set_curve_serverkey(auth_cert.public_txt());
         sock.set_sndtimeo(Some(5000));
         sock.set_rcvtimeo(Some(5000));
@@ -46,17 +46,17 @@ impl Auth {
         })
     }
 
-    pub fn list(&self, cert_type: &str) -> Result<Vec<String>> {
+    pub fn list(&mut self, cert_type: &str) -> Result<Vec<String>> {
         let req = ZMsg::new();
         try!(req.addstr("cert::list"));
         try!(req.addstr(cert_type));
-        try!(req.send(&self.sock));
+        try!(req.send(&mut self.sock));
 
-        let result = try!(ZFrame::recv(&self.sock));
+        let result = try!(ZFrame::recv(&mut self.sock));
 
         match try!(try!(result.data()).or(Err(Error::HostResponse))).as_ref() {
             "Ok" => {
-                let reply = try!(ZMsg::recv(&self.sock));
+                let reply = try!(ZMsg::recv(&mut self.sock));
                 let mut list = Vec::new();
 
                 for frame in reply {
@@ -73,18 +73,18 @@ impl Auth {
         }
     }
 
-    pub fn add(&self, cert_type: &str, name: &str) -> Result<Cert> {
+    pub fn add(&mut self, cert_type: &str, name: &str) -> Result<Cert> {
         let req = ZMsg::new();
         try!(req.addstr("cert::create"));
         try!(req.addstr(cert_type));
         try!(req.addstr(name));
-        try!(req.send(&self.sock));
+        try!(req.send(&mut self.sock));
 
-        let result = try!(ZFrame::recv(&self.sock));
+        let result = try!(ZFrame::recv(&mut self.sock));
 
         match try!(try!(result.data()).or(Err(Error::HostResponse))).as_ref() {
             "Ok" => {
-                let reply = try!(ZMsg::recv(&self.sock));
+                let reply = try!(ZMsg::recv(&mut self.sock));
 
                 if reply.size() != 3 {
                     return Err(Error::HostResponse.into())
@@ -94,7 +94,7 @@ impl Auth {
                 let seckey = try!(reply.popstr().unwrap().or(Err(Error::HostResponse)));
                 let meta = try!(reply.popbytes()).unwrap();
 
-                let cert = Cert::new(ZCert::from_txt(&pubkey, &seckey));
+                let cert = Cert::new(ZCert::from_txt(&pubkey, &seckey)?);
                 try!(cert.decode_meta(&meta));
                 Ok(cert)
             },
@@ -106,13 +106,13 @@ impl Auth {
         }
     }
 
-    pub fn delete(&self, name: &str) -> Result<()> {
+    pub fn delete(&mut self, name: &str) -> Result<()> {
         let req = ZMsg::new();
         try!(req.addstr("cert::delete"));
         try!(req.addstr(name));
-        try!(req.send(&self.sock));
+        try!(req.send(&mut self.sock));
 
-        let result = try!(ZFrame::recv(&self.sock));
+        let result = try!(ZFrame::recv(&mut self.sock));
 
         match try!(try!(result.data()).or(Err(Error::HostResponse))).as_ref() {
             "Ok" => Ok(()),
@@ -190,10 +190,10 @@ mod tests {
     fn test_list() {
         ZSys::init();
 
-        let (client, server) = ZSys::create_pipe().unwrap();
+        let (client, mut server) = ZSys::create_pipe().unwrap();
 
         let handle = spawn(move|| {
-            let req = ZMsg::recv(&server).unwrap();
+            let req = ZMsg::recv(&mut server).unwrap();
             assert_eq!(&req.popstr().unwrap().unwrap(), "cert::list");
             assert_eq!(&req.popstr().unwrap().unwrap(), "host");
 
@@ -203,10 +203,10 @@ mod tests {
             rep.addstr("Yak").unwrap();
             rep.addstr("is").unwrap();
             rep.addstr("DELICIOUS").unwrap();
-            rep.send(&server).unwrap();
+            rep.send(&mut server).unwrap();
         });
 
-        let auth = Auth {
+        let mut auth = Auth {
             sock: client,
         };
 
@@ -223,10 +223,10 @@ mod tests {
     fn test_add() {
         ZSys::init();
 
-        let (client, server) = ZSys::create_pipe().unwrap();
+        let (client, mut server) = ZSys::create_pipe().unwrap();
 
         let handle = spawn(move|| {
-            let req = ZMsg::recv(&server).unwrap();
+            let req = ZMsg::recv(&mut server).unwrap();
             assert_eq!(&req.popstr().unwrap().unwrap(), "cert::create");
             assert_eq!(&req.popstr().unwrap().unwrap(), "host");
             assert_eq!(&req.popstr().unwrap().unwrap(), "foobar");
@@ -236,17 +236,17 @@ mod tests {
             rep.addstr("0000000000000000000000000000000000000000").unwrap();
             rep.addstr("0000000000000000000000000000000000000000").unwrap();
             rep.addstr("").unwrap();
-            rep.send(&server).unwrap();
+            rep.send(&mut server).unwrap();
 
             server.recv_str().unwrap().unwrap();
 
             let rep = ZMsg::new();
             rep.addstr("Err").unwrap();
             rep.addstr("I'm broke!").unwrap();
-            rep.send(&server).unwrap();
+            rep.send(&mut server).unwrap();
         });
 
-        let auth = Auth {
+        let mut auth = Auth {
             sock: client,
         };
         assert!(auth.add("host", "foobar").is_ok());
@@ -259,10 +259,10 @@ mod tests {
     fn test_delete() {
         ZSys::init();
 
-        let (client, server) = ZSys::create_pipe().unwrap();
+        let (client, mut server) = ZSys::create_pipe().unwrap();
 
         let handle = spawn(move|| {
-            let req = ZMsg::recv(&server).unwrap();
+            let req = ZMsg::recv(&mut server).unwrap();
             assert_eq!(&req.popstr().unwrap().unwrap(), "cert::delete");
             assert_eq!(&req.popstr().unwrap().unwrap(), "foobar");
 
@@ -272,10 +272,10 @@ mod tests {
             let rep = ZMsg::new();
             rep.addstr("Err").unwrap();
             rep.addstr("I'm broke!").unwrap();
-            rep.send(&server).unwrap();
+            rep.send(&mut server).unwrap();
         });
 
-        let auth = Auth {
+        let mut auth = Auth {
             sock: client,
         };
         assert!(auth.delete("foobar").is_ok());

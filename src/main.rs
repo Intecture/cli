@@ -137,7 +137,7 @@ fn run(args: &Args) -> Result<()> {
         let cert_type = if args.cmd_host { "host" } else { "user" };
         let name = if args.cmd_host { &args.arg_hostname } else { &args.arg_username };
 
-        let auth = try!(Auth::new(&env::current_dir().unwrap()));
+        let mut auth = try!(Auth::new(&env::current_dir().unwrap()));
 
         if args.cmd_add {
             let cert = try!(auth.add(cert_type, name));
