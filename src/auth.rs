@@ -12,7 +12,7 @@ use czmq::{ZCert, ZFrame, ZMsg, ZSock, SocketType};
 use error::Result;
 use std::{error, fmt};
 use std::path::Path;
-use zdaemon::ConfigFile;
+use zdaemon::{ConfigFile, ZMsgExtended};
 
 pub struct Auth {
     sock: ZSock,
@@ -80,26 +80,24 @@ impl Auth {
         try!(req.addstr(name));
         try!(req.send(&mut self.sock));
 
-        let result = try!(ZFrame::recv(&mut self.sock));
+        let reply = ZMsg::expect_recv(&mut self.sock, 2, None, true)?;
 
-        match try!(try!(result.data()).or(Err(Error::HostResponse))).as_ref() {
+        match reply.popstr().unwrap().or(Err(Error::HostResponse))?.as_ref() {
             "Ok" => {
-                let reply = try!(ZMsg::recv(&mut self.sock));
-
                 if reply.size() != 3 {
                     return Err(Error::HostResponse.into())
                 }
 
-                let pubkey = try!(reply.popstr().unwrap().or(Err(Error::HostResponse)));
-                let seckey = try!(reply.popstr().unwrap().or(Err(Error::HostResponse)));
-                let meta = try!(reply.popbytes()).unwrap();
+                let pubkey = reply.popstr().unwrap().or(Err(Error::HostResponse))?;
+                let seckey = reply.popstr().unwrap().or(Err(Error::HostResponse))?;
+                let meta = reply.popbytes()?.unwrap();
 
                 let cert = Cert::new(ZCert::from_txt(&pubkey, &seckey)?);
                 try!(cert.decode_meta(&meta));
                 Ok(cert)
             },
             "Err" => {
-                let e = try!(try!(self.sock.recv_str()).or(Err(Error::HostResponse)));
+                let e = reply.popstr().unwrap().or(Err(Error::HostResponse))?;
                 Err(Error::HostError(e).into())
             },
             _ => Err(Error::HostResponse.into()),

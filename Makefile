@@ -1,38 +1,25 @@
-UNAME_S := $(shell uname -s)
-CARGO := $(shell which cargo)
 TARGET = release
- 
-ifeq ($(UNAME_S), Linux)
-	FEDORA := $(grep -qs Fedora /etc/redhat-release)
-	ifeq ($$?, 0)
-		USRPATH = /usr/local
-		export PATH := $(USRPATH)/bin:$(PATH)
-	else
-		USRPATH = /usr
-	endif
-else ifeq ($(UNAME_S), Darwin)
-	USRPATH = /usr/local
-endif
+PREFIX = /usr/local
 
 all:
 ifeq ($(TARGET), release)
-	$(CARGO) build --release
+	cargo build --release
 else
-	$(CARGO) build
+	cargo build
 endif
 
 install:
-	install -m 0755 target/$(TARGET)/incli $(USRPATH)/bin
+	install -m 0755 target/$(TARGET)/incli $(PREFIX)/bin
 
 uninstall:
-	rm -f $(USRPATH)/bin/incli
+	rm -f $(PREFIX)/bin/incli
 
 test:
 ifeq ($(TARGET), release)
-	$(CARGO) test --release
+	cargo test --release
 else
-	$(CARGO) test
+	cargo test
 endif
 
 clean:
-	$(CARGO) clean
+	cargo clean
