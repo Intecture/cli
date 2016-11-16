@@ -74,8 +74,6 @@ struct Args {
     flag_help: bool,
     flag_s: bool,
     flag_silent: bool,
-    flag_v: bool,
-    flag_verbose: bool,
     flag_version: bool,
     arg_arg: Vec<String>,
     arg_hostname: String,
@@ -92,11 +90,7 @@ fn main() {
 
     if let Err(e) = run(&args) {
         println!("{}", e);
-
-        if args.flag_v || args.flag_verbose {
-            println!("{:?}", e);
-        }
-
+        println!("{:?}", e);
         exit(1);
     }
 }
