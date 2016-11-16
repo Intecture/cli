@@ -16,7 +16,7 @@ docopt = "0.6.*"
 intecture-api = { git = "https://github.com/intecture/api.git", branch = "dev" }
 rustc-serialize = "0.3.*"
 time = "0.1"
-zdaemon = { git = "https://github.com/betweenlines/zdaemon.git", tag = "0.0.1" }
+zdaemon = { git = "https://github.com/betweenlines/zdaemon.git", branch = "dev" }
 
 [dev-dependencies]
 
