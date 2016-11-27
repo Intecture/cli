@@ -45,10 +45,10 @@ EOF
 {{AUTHCERT}}
 EOF
 
-    $_installdir/installer.sh install_certs $_agentcrt $_authcrt
-    $_installdir/installer.sh amend_conf auth_server \"{{AUTHHOST}}\"
-    $_installdir/installer.sh amend_conf auth_update_port {{AUTHPORT}}
-    $_installdir/installer.sh start_daemon
+    {{SUDO}} $_installdir/installer.sh install_certs $_agentcrt $_authcrt
+    {{SUDO}} $_installdir/installer.sh amend_conf auth_server \"{{AUTHHOST}}\"
+    {{SUDO}} $_installdir/installer.sh amend_conf auth_update_port {{AUTHPORT}}
+    {{SUDO}} $_installdir/installer.sh start_daemon
 
     # Check that inagent is up and running
     if ! $(pgrep -q inagent); then
@@ -66,6 +66,7 @@ main
 pub struct Bootstrap {
     hostname: String,
     session: Session,
+    is_root: bool,
 }
 
 impl Bootstrap {
@@ -91,6 +92,7 @@ impl Bootstrap {
         Ok(Bootstrap {
             hostname: hostname.into(),
             session: sess,
+            is_root: u == "root",
         })
     }
 
@@ -115,7 +117,8 @@ impl Bootstrap {
                                      .replace("{{AUTHHOST}}", &conf.auth_server)
                                      .replace("{{AUTHPORT}}", &conf.auth_update_port.to_string())
                                      .replace("{{PREINSTALL}}", preinstall_script.unwrap_or(""))
-                                     .replace("{{POSTINSTALL}}", postinstall_script.unwrap_or(""));
+                                     .replace("{{POSTINSTALL}}", postinstall_script.unwrap_or(""))
+                                     .replace("{{SUDO}}", if self.is_root { "" } else { "sudo" });
         let bootstrap_path = Self::channel_exec(&mut channel, "mktemp")?;
         let cmd = format!("chmod +x {0} && cat <<EOF > {0}
 {1}
