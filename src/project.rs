@@ -15,6 +15,8 @@ use std::path::Path;
 use std::process::{Command, ExitStatus};
 use zdaemon::ConfigFile;
 
+pub const CONFIGNAME: &'static str = "project.json";
+
 #[derive(Debug)]
 pub struct Project {
     pub name: String,
@@ -25,7 +27,7 @@ impl Project {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Project> {
         // Load config
         let mut buf = path.as_ref().to_owned();
-        buf.push("project.json");
+        buf.push(CONFIGNAME);
         let conf = try!(ProjectConfig::load(&buf));
 
         Ok(Project {
@@ -74,10 +76,12 @@ impl Project {
         }
 
         // Create project.json
-        path.push("project.json");
+        path.push(CONFIGNAME);
         let project_conf = ProjectConfig {
             language: language,
-            auth_server: "auth.example.com:7101".into(),
+            auth_server: "auth.example.com".into(),
+            auth_api_port: 7101,
+            auth_update_port: 7102,
         };
         try!(project_conf.save(&path));
         path.pop();
@@ -147,9 +151,14 @@ mod tests {
         let dir = TempDir::new("test_load_ok").unwrap();
         let mut path = dir.path().to_owned();
 
-        path.push("project.json");
+        path.push(CONFIGNAME);
         let mut file = File::create(&path).unwrap();
-        file.write_all("{\"language\":\"Php\",\"auth_server\":\"auth.example.com:7101\"}".as_bytes()).unwrap();
+        file.write_all("{
+            \"language\":\"Php\",
+            \"auth_server\":\"auth.example.com\",
+            \"auth_api_port\": 7101,
+            \"auth_update_port\": 7102
+        }".as_bytes()).unwrap();
         path.pop();
 
         assert!(Project::load(&path).is_ok());
@@ -168,6 +177,6 @@ mod tests {
         buf.push("proj_dir");
 
         assert!(Project::create(&buf, Language::Rust).is_ok());
-        assert!(metadata(format!("{}/project.json", buf.to_str().unwrap())).is_ok());
+        assert!(metadata(format!("{}/{}", buf.to_str().unwrap(), CONFIGNAME)).is_ok());
     }
 }

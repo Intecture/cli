@@ -10,12 +10,14 @@ extern crate czmq;
 extern crate docopt;
 extern crate inapi;
 extern crate rustc_serialize;
+extern crate ssh2;
 #[cfg(test)]
 extern crate tempdir;
 extern crate time;
 extern crate zdaemon;
 
 mod auth;
+mod bootstrap;
 mod cert;
 mod error;
 mod language;
@@ -23,13 +25,14 @@ mod payload;
 mod project;
 
 use auth::Auth;
+use bootstrap::Bootstrap;
 use docopt::Docopt;
 use error::Result;
 use language::language_from_str;
 use payload::Payload;
 use project::Project;
 use std::{env, io};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::exit;
 
 const API_VERSION: &'static str = "{ git = \"https://github.com/intecture/api\" }";
@@ -43,7 +46,8 @@ Usage:
   incli project init <name> <lang>
   incli payload init <name> <lang>
   incli payload build [<names>...]
-  incli host (add | delete | bootstrap) [(-s | --silent)] <hostname>
+  incli host (add | delete) [(-s | --silent)] <hostname>
+  incli host bootstrap <hostname> [-u <username>] [-P <password>] [-i <identity_file>] [-p <ssh_port>] [-m <preinstall_script>] [-n <postinstall_script>]
   incli host list
   incli user (add | delete) [(-s | --silent)] <username>
   incli user list
@@ -52,12 +56,19 @@ Usage:
 
 Options:
   -h --help     Show this screen.
+  -i            Path to SSH private key.
+  -m            Script to run before attempting to install Agent.
+  -n            Script to run after successfully installing Agent.
+  -p            SSH port number.
+  -P            SSH password.
   -s --silent   Save private key instead of printing it.
+  -u            SSH username.
   -v --verbose  Verbose output.
-  --version     Show version.
+  --version     Print this script's version.
 ";
 
 #[derive(Debug, RustcDecodable)]
+#[allow(non_snake_case)]
 struct Args {
     cmd_add: bool,
     cmd_bootstrap: bool,
@@ -72,9 +83,15 @@ struct Args {
     cmd_user: bool,
     flag_h: bool,
     flag_help: bool,
+    flag_i: Option<PathBuf>,
+    flag_m: Option<String>,
+    flag_n: Option<String>,
+    flag_p: Option<u32>,
+    flag_P: Option<String>,
     flag_s: bool,
     flag_silent: bool,
     flag_version: bool,
+    flag_u: Option<String>,
     arg_arg: Vec<String>,
     arg_hostname: String,
     arg_lang: String,
@@ -178,7 +195,22 @@ fn run(args: &Args) -> Result<()> {
             }
         }
         else if args.cmd_bootstrap && args.cmd_host {
-            unimplemented!();
+            print!("Connecting to {}...", args.arg_hostname);
+            let mut bootstrap = Bootstrap::new(&args.arg_hostname,
+                                               args.flag_p,
+                                               args.flag_u.as_ref().map(|u| &**u),
+                                               args.flag_P.as_ref().map(|p| &**p),
+                                               args.flag_i.as_ref())?;
+            println!("done");
+
+            print!("Bootstrapping...");
+            match bootstrap.run(args.flag_m.as_ref().map(|m| &**m), args.flag_n.as_ref().map(|n| &**n)) {
+                Ok(()) => println!("done"),
+                Err(e) => {
+                    println!("error!");
+                    return Err(e);
+                }
+            }
         }
     }
 

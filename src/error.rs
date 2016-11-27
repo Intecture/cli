@@ -13,6 +13,7 @@ use language::LanguageError;
 use payload::PayloadError;
 use project::ProjectError;
 use rustc_serialize::json::{DecoderError, EncoderError};
+use ssh2;
 use std::{error, fmt, io, result, string};
 use std::convert::From;
 use zdaemon;
@@ -22,6 +23,7 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     Auth(auth::Error),
+    Bootstrap(String),
     Czmq(czmq::Error),
     Decoder(DecoderError),
     Encoder(EncoderError),
@@ -30,6 +32,7 @@ pub enum Error {
     Language(LanguageError),
     Payload(PayloadError),
     Project(ProjectError),
+    Ssh2(ssh2::Error),
     StringConvert(string::FromUtf8Error),
     ZDaemon(zdaemon::Error),
 }
@@ -38,6 +41,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Error::Auth(ref e) => write!(f, "Auth error: {}", e),
+            Error::Bootstrap(ref e) => write!(f, "Bootstrap error: {}", e),
             Error::Czmq(ref e) => write!(f, "CZMQ error: {}", e),
             Error::Decoder(ref e) => write!(f, "Decoder error: {}", e),
             Error::Encoder(ref e) => write!(f, "Encoder error: {}", e),
@@ -46,6 +50,7 @@ impl fmt::Display for Error {
             Error::Language(ref e) => write!(f, "Language error: {}", e),
             Error::Payload(ref e) => write!(f, "Payload error: {}", e),
             Error::Project(ref e) => write!(f, "Project error: {}", e),
+            Error::Ssh2(ref e) => write!(f, "SSH2 error: {}", e),
             Error::StringConvert(ref e) => write!(f, "String conversion error: {}", e),
             Error::ZDaemon(ref e) => write!(f, "ZDaemon error: {}", e),
         }
@@ -56,6 +61,7 @@ impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
             Error::Auth(ref e) => e.description(),
+            Error::Bootstrap(ref e) => e,
             Error::Czmq(ref e) => e.description(),
             Error::Decoder(ref e) => e.description(),
             Error::Encoder(ref e) => e.description(),
@@ -64,6 +70,7 @@ impl error::Error for Error {
             Error::Language(ref e) => e.description(),
             Error::Payload(ref e) => e.description(),
             Error::Project(ref e) => e.description(),
+            Error::Ssh2(ref e) => e.description(),
             Error::StringConvert(ref e) => e.description(),
             Error::ZDaemon(ref e) => e.description(),
         }
@@ -72,6 +79,7 @@ impl error::Error for Error {
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             Error::Auth(ref e) => Some(e),
+            Error::Bootstrap(_) => None,
             Error::Czmq(ref e) => Some(e),
             Error::Decoder(ref e) => Some(e),
             Error::Encoder(ref e) => Some(e),
@@ -80,6 +88,7 @@ impl error::Error for Error {
             Error::Language(ref e) => Some(e),
             Error::Payload(ref e) => Some(e),
             Error::Project(ref e) => Some(e),
+            Error::Ssh2(ref e) => Some(e),
             Error::StringConvert(ref e) => Some(e),
             Error::ZDaemon(ref e) => Some(e),
         }
@@ -137,6 +146,12 @@ impl From<PayloadError> for Error {
 impl From<ProjectError> for Error {
     fn from(err: ProjectError) -> Error {
         Error::Project(err)
+    }
+}
+
+impl From<ssh2::Error> for Error {
+    fn from(err: ssh2::Error) -> Error {
+        Error::Ssh2(err)
     }
 }
 

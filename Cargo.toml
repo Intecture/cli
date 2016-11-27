@@ -15,6 +15,7 @@ czmq = { git = "https://github.com/petehayes102/rust-czmq.git", branch = "dev" }
 docopt = "0.6.*"
 intecture-api = { git = "https://github.com/intecture/api.git", branch = "dev" }
 rustc-serialize = "0.3.*"
+ssh2 = "0.3"
 time = "0.1"
 zdaemon = { git = "https://github.com/betweenlines/zdaemon.git", branch = "dev" }
 

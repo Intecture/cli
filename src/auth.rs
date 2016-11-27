@@ -10,6 +10,7 @@ use cert::Cert;
 use inapi::ProjectConfig;
 use czmq::{ZCert, ZFrame, ZMsg, ZSock, SocketType};
 use error::Result;
+use project;
 use std::{error, fmt};
 use std::path::Path;
 use zdaemon::{ConfigFile, ZMsgExtended};
@@ -22,7 +23,7 @@ impl Auth {
     pub fn new<P: AsRef<Path>>(project_path: P) -> Result<Auth> {
         let mut buf = project_path.as_ref().to_owned();
 
-        buf.push("project.json");
+        buf.push(project::CONFIGNAME);
         let config = try!(ProjectConfig::load(&buf));
         buf.pop();
 
@@ -39,7 +40,7 @@ impl Auth {
         sock.set_curve_serverkey(auth_cert.public_txt());
         sock.set_sndtimeo(Some(5000));
         sock.set_rcvtimeo(Some(5000));
-        try!(sock.connect(&format!("tcp://{}", config.auth_server)));
+        try!(sock.connect(&format!("tcp://{}:{}", config.auth_server, config.auth_api_port)));
 
         Ok(Auth {
             sock: sock,
@@ -152,6 +153,7 @@ mod tests {
     use inapi::ProjectConfig;
     use czmq::{ZCert, ZMsg, ZSys};
     use language::Language;
+    use project;
     use std::thread::spawn;
     use super::*;
     use tempdir::TempDir;
@@ -163,10 +165,12 @@ mod tests {
 
         let mut path = dir.path().to_owned();
 
-        path.push("project.json");
+        path.push(project::CONFIGNAME);
         let config = ProjectConfig {
             language: Language::Rust,
-            auth_server: "127.0.0.1:7101".into()
+            auth_server: "127.0.0.1".into(),
+            auth_api_port: 7101,
+            auth_update_port: 0,
         };
         config.save(&path).unwrap();
         path.pop();
