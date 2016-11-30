@@ -10,7 +10,7 @@ use auth::Auth;
 use error::{Error, Result};
 use inapi::ProjectConfig;
 use project;
-use ssh2::{Channel, Session};
+use ssh2::Session;
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
@@ -26,22 +26,22 @@ main() {
     {{PREINSTALL}}
 
     # Install agent
-    local _installdir=$(curl -sSf https://get.intecture.io | sh -- -k agent)
+    local _installdir=$(curl -sSf https://get.intecture.io | sh -s -- -k agent)
 
-    if [ -z $_installdir]; then
+    if [ -z \"$_installdir\" ]; then
         echo \"Install failed\"
         exit 1
     fi
 
     # Create agent cert
-    local _agentcrt = mktemp
-    cat <<EOF > $_agentcrt
+    local _agentcrt=mktemp 2>/dev/null || mktemp -t in-agentcrt
+    cat << \"EOF\" > $_agentcrt
 {{AGENTCERT}}
 EOF
 
     # Create auth cert
-    local _authcrt = mktemp
-    cat <<EOF > $_authcrt
+    local _authcrt=mktemp 2>/dev/null || mktemp -t in-authcrt
+    cat << \"EOF\" > $_authcrt
 {{AUTHCERT}}
 EOF
 
@@ -51,7 +51,8 @@ EOF
     {{SUDO}} $_installdir/installer.sh start_daemon
 
     # Check that inagent is up and running
-    if ! $(pgrep -q inagent); then
+    sleep 1
+    if ! $(pgrep inagent >/dev/null 2>&1); then
         echo \"Failed to start inagent daemon\"
         exit 1
     fi
@@ -60,7 +61,7 @@ EOF
     {{POSTINSTALL}}
 }
 
-main
+main || exit 1
 ";
 
 pub struct Bootstrap {
@@ -103,8 +104,6 @@ impl Bootstrap {
     }
 
     pub fn run(&mut self, preinstall_script: Option<&str>, postinstall_script: Option<&str>) -> Result<()> {
-        let mut channel = self.session.channel_session()?;
-
         let mut auth = try!(Auth::new(&env::current_dir().unwrap()));
         let agent_cert = try!(auth.add("host", &self.hostname));
 
@@ -125,17 +124,18 @@ impl Bootstrap {
                                      .replace("{{PREINSTALL}}", preinstall_script.unwrap_or(""))
                                      .replace("{{POSTINSTALL}}", postinstall_script.unwrap_or(""))
                                      .replace("{{SUDO}}", if self.is_root { "" } else { "sudo" });
-        let bootstrap_path = Self::channel_exec(&mut channel, "mktemp")?;
-        let cmd = format!("chmod +x {0} && cat <<EOF > {0}
+        let bootstrap_path = self.channel_exec("mktemp 2>/dev/null || mktemp -t in-bootstrap")?;
+        let cmd = format!("chmod u+x {0} && cat << \"EOS\" > {0}
 {1}
-EOF", bootstrap_path, script);
-        Self::channel_exec(&mut channel, &cmd)?;
-        Self::channel_exec(&mut channel, &bootstrap_path)?;
+EOS", bootstrap_path.trim(), script);
+        self.channel_exec(&cmd)?;
+        self.channel_exec(&bootstrap_path)?;
 
         Ok(())
     }
 
-    fn channel_exec(channel: &mut Channel, cmd: &str) -> Result<String> {
+    fn channel_exec(&mut self, cmd: &str) -> Result<String> {
+        let mut channel = self.session.channel_session()?;
         channel.exec(cmd)?;
         let mut s = String::new();
         channel.read_to_string(&mut s)?;
