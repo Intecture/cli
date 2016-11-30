@@ -26,7 +26,7 @@ main() {
     {{PREINSTALL}}
 
     # Install agent
-    local _installdir=$(curl -sSf https://get.intecture.io | sh -- -ys agent)
+    local _installdir=$(curl -sSf https://get.intecture.io | sh -- -k agent)
 
     if [ -z $_installdir]; then
         echo \"Install failed\"
