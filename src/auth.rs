@@ -49,25 +49,26 @@ impl Auth {
 
     pub fn list(&mut self, cert_type: &str) -> Result<Vec<String>> {
         let req = ZMsg::new();
-        try!(req.addstr("cert::list"));
-        try!(req.addstr(cert_type));
-        try!(req.send(&mut self.sock));
+        req.addstr("cert::list")?;
+        req.addstr(cert_type)?;
+        req.send(&mut self.sock)?;
 
-        let result = try!(ZFrame::recv(&mut self.sock));
+        let reply = ZMsg::expect_recv(&mut self.sock, 1, None, true)?;
 
-        match try!(try!(result.data()).or(Err(Error::HostResponse))).as_ref() {
+        match reply.popstr().unwrap().or(Err(Error::HostResponse))?.as_ref() {
             "Ok" => {
-                let reply = try!(ZMsg::recv(&mut self.sock));
                 let mut list = Vec::new();
 
                 for frame in reply {
-                    list.push(try!(try!(frame.data()).or(Err(Error::HostResponse))));
+                    list.push(frame.data()?.or(Err(Error::HostResponse))?);
                 }
 
                 Ok(list)
             },
             "Err" => {
-                let e = try!(try!(self.sock.recv_str()).or(Err(Error::HostResponse)));
+                let e = reply.popstr()
+                             .ok_or(Error::HostResponse)?
+                             .or(Err(Error::HostResponse))?;
                 Err(Error::HostError(e).into())
             },
             _ => Err(Error::HostResponse.into()),

@@ -190,8 +190,12 @@ fn run(args: &Args) -> Result<()> {
         else if args.cmd_list {
             let names = try!(auth.list(cert_type));
 
-            for name in names {
-                println!("{}", name);
+            if names.is_empty() {
+                println!("No {}s found", cert_type);
+            } else {
+                for name in names {
+                    println!("{}", name);
+                }
             }
         }
         else if args.cmd_bootstrap && args.cmd_host {
