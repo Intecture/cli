@@ -36,7 +36,7 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 
 const API_VERSION: &'static str = "{ git = \"https://github.com/intecture/api\" }";
-const VERSION: &'static str = "0.2.1";
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 static USAGE: &'static str = "
 Intecture CLI.
