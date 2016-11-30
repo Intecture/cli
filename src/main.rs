@@ -32,7 +32,7 @@ use language::language_from_str;
 use payload::Payload;
 use project::Project;
 use std::{env, io};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::exit;
 
 const API_VERSION: &'static str = "{ git = \"https://github.com/intecture/api\" }";
@@ -55,14 +55,14 @@ Usage:
   incli --version
 
 Options:
-  -h --help     Show this screen.
-  -i            Path to SSH private key.
-  -m            Script to run before attempting to install Agent.
-  -n            Script to run after successfully installing Agent.
-  -p            SSH port number.
-  -P            SSH password.
-  -s --silent   Save private key instead of printing it.
-  -u            SSH username.
+  -h --help                 Show this screen.
+  -i <identity_file>        Path to SSH private key.
+  -m <preinstall_script>    Script to run before attempting to install Agent.
+  -n <postinstall_script>   Script to run after successfully installing Agent.
+  -p <ssh_port>             SSH port number.
+  -P <password>             SSH password.
+  -s --silent               Save private key instead of printing it.
+  -u <username>             SSH username.
   -v --verbose  Verbose output.
   --version     Print this script's version.
 ";
@@ -83,7 +83,7 @@ struct Args {
     cmd_user: bool,
     flag_h: bool,
     flag_help: bool,
-    flag_i: Option<PathBuf>,
+    flag_i: Option<String>,
     flag_m: Option<String>,
     flag_n: Option<String>,
     flag_p: Option<u32>,
@@ -200,7 +200,7 @@ fn run(args: &Args) -> Result<()> {
                                                args.flag_p,
                                                args.flag_u.as_ref().map(|u| &**u),
                                                args.flag_P.as_ref().map(|p| &**p),
-                                               args.flag_i.as_ref())?;
+                                               args.flag_i.as_ref().map(|i| &**i))?;
             println!("done");
 
             print!("Bootstrapping...");

@@ -65,23 +65,24 @@ main
 
 pub struct Bootstrap {
     hostname: String,
+    _stream: TcpStream,
     session: Session,
     is_root: bool,
 }
 
 impl Bootstrap {
-    pub fn new<P: AsRef<Path>>(hostname: &str,
-                               port: Option<u32>,
-                               username: Option<&str>,
-                               password: Option<&str>,
-                               identity_file: Option<P>) -> Result<Bootstrap> {
+    pub fn new(hostname: &str,
+               port: Option<u32>,
+               username: Option<&str>,
+               password: Option<&str>,
+               identity_file: Option<&str>) -> Result<Bootstrap> {
         let tcp = TcpStream::connect(&*format!("{}:{}", hostname, port.unwrap_or(22)))?;
         let mut sess = Session::new().unwrap();
         sess.handshake(&tcp)?;
 
         let u = username.unwrap_or("root");
         if let Some(ref i) = identity_file {
-            sess.userauth_pubkey_file(u, None, i.as_ref(), None)?;
+            sess.userauth_pubkey_file(u, None, Path::new(i), None)?;
         }
         else if let Some(ref p) = password {
             sess.userauth_password(u, p).unwrap();
@@ -89,11 +90,16 @@ impl Bootstrap {
             sess.userauth_agent(u)?;
         }
 
-        Ok(Bootstrap {
-            hostname: hostname.into(),
-            session: sess,
-            is_root: u == "root",
-        })
+        if sess.authenticated() {
+            Ok(Bootstrap {
+                hostname: hostname.into(),
+                _stream: tcp,
+                session: sess,
+                is_root: u == "root",
+            })
+        } else {
+            Err(Error::Bootstrap("Failed to authenticate to host".into()))
+        }
     }
 
     pub fn run(&mut self, preinstall_script: Option<&str>, postinstall_script: Option<&str>) -> Result<()> {
