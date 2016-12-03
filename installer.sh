@@ -11,39 +11,9 @@
 set -u
 
 # Globals
-prefix=""
-libdir=""
-sysconfdir=""
+prefix="{{prefix}}"
+libdir="{{libdir}}"
 ostype="$(uname -s)"
-
-case "$ostype" in
-    Linux)
-        prefix="/usr"
-		libdir="$prefix/lib"
-        sysconfdir="/etc"
-
-		if [ -d "${libdir}64" ]; then
-			libdir="${libdir}64"
-		fi
-        ;;
-
-    FreeBSD)
-        prefix="/usr/local"
-		libdir="$prefix/lib"
-        sysconfdir="$prefix/etc"
-        ;;
-
-    Darwin)
-        prefix="/usr/local"
-		libdir="$prefix/lib"
-        sysconfdir="$prefix/etc"
-        ;;
-
-    *)
-        echo "unrecognized OS type: $ostype" >&2
-        exit 1
-        ;;
-esac
 
 do_install() {
     if ! $(pkg-config --exists libzmq); then
