@@ -63,8 +63,8 @@ Options:
   -P <password>             SSH password.
   -s --silent               Save private key instead of printing it.
   -u <username>             SSH username.
-  -v --verbose  Verbose output.
-  --version     Print this script's version.
+  -v --verbose              Verbose output.
+  --version                 Print this script's version.
 ";
 
 #[derive(Debug, RustcDecodable)]
