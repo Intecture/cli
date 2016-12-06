@@ -25,27 +25,23 @@ main() {
     # Run any user-defined preinstall scripts
     {{PREINSTALL}}
 
-    # Install agent
-    local _installdir=$(curl -sSf https://get.intecture.io | sh -s -- -k agent)
+    local _tmpdir=\"$(mktemp -d 2>/dev/null || ensure mktemp -d -t intecture)\"
+    cd $_tmpdir
 
-    if [ -z \"$_installdir\" ]; then
-        echo \"Install failed\"
-        exit 1
-    fi
+    # Install agent
+    $(curl -sSf https://get.intecture.io | sh -s -- -y -d $_tmpdir agent) || exit 1
 
     # Create agent cert
-    local _agentcrt=mktemp 2>/dev/null || mktemp -t in-agentcrt
-    cat << \"EOF\" > $_agentcrt
+    cat << \"EOF\" > agent.crt
 {{AGENTCERT}}
 EOF
 
     # Create auth cert
-    local _authcrt=mktemp 2>/dev/null || mktemp -t in-authcrt
-    cat << \"EOF\" > $_authcrt
+    cat << \"EOF\" > auth.crt
 {{AUTHCERT}}
 EOF
 
-    {{SUDO}} $_installdir/installer.sh install_certs $_agentcrt $_authcrt
+    {{SUDO}} $_installdir/installer.sh install_certs agent.crt auth.crt
     {{SUDO}} $_installdir/installer.sh amend_conf auth_server \"{{AUTHHOST}}\"
     {{SUDO}} $_installdir/installer.sh amend_conf auth_update_port {{AUTHPORT}}
     {{SUDO}} $_installdir/installer.sh start_daemon
