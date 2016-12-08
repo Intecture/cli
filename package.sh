@@ -81,6 +81,20 @@ main() {
         cd ..
     fi
 
+    # OpenSSL dependency
+    if ! $(pkg-config --exists openssl); then
+        if [ -f /etc/redhat-release ]; then
+            yum install -y openssl-devel
+        elif [ -f /etc/debian_version ]; then
+            apt-get install -y libssl-dev
+        elif [ $(uname -s) = "freebsd" ]; then
+            pkg install -y openssl-devel
+        else
+            echo "Unsupported OS" >&2
+            exit 1
+        fi
+    fi
+
     # Build and install project assets
     cargo build --release --manifest-path "$_cargodir/Cargo.toml"
 
@@ -137,6 +151,9 @@ main() {
     cp "$prefix/include/zstr.h" "$_pkgdir/include/"
     cp "$prefix/include/zsys.h" "$_pkgdir/include/"
     cp "$prefix/include/zuuid.h" "$_pkgdir/include/"
+
+    # OpenSSL assets
+    cp "$libdir/libssl.so" "$_pkgdir/lib/"
 
     # Configure installer.sh paths
     sed "s~{{prefix}}~$prefix~" < "$_cargodir/installer.sh" |
