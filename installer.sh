@@ -13,19 +13,37 @@ set -u
 # Globals
 prefix="{{prefix}}"
 libdir="{{libdir}}"
-ostype="$(uname -s)"
+libext="{{libext}}"
+ostype="{{ostype}}"
 
 do_install() {
+    local _one=
+    local _two=
+
     if ! $(pkg-config --exists libzmq); then
-        install -m 755 lib/libzmq.so $libdir/libzmq.so.5
-        ln -s $libdir/libzmq.so.5 $libdir/libzmq.so
+        if [ "$ostype" = "darwin"]; then
+            $_one="5"
+            $_two=$libext
+        else
+            $_one=$libext
+            $_two="5"
+        fi
+        install -m 755 lib/libzmq.$libext $libdir/libzmq.$_one.$_two
+        ln -s $libdir/libzmq.$_one.$_two $libdir/libzmq.$libext
         install -m 644 lib/pkgconfig/libzmq.pc $libdir/pkgconfig/
         install -m 644 include/zmq.h $prefix/include/
     fi
 
     if ! $(pkg-config --exists libczmq); then
-        install -m 755 lib/libczmq.so $libdir/libczmq.so.4
-        ln -s $libdir/libczmq.so.4 $libdir/libczmq.so
+        if [ "$ostype" = "darwin"]; then
+            $_one="4"
+            $_two=$libext
+        else
+            $_one=$libext
+            $_two="4"
+        fi
+        install -m 755 lib/libczmq.$libext $libdir/libczmq.$_one.$_two
+        ln -s $libdir/libczmq.$_one.$_two $libdir/libczmq.$libext
         install -m 644 lib/pkgconfig/libczmq.pc $libdir/pkgconfig/
         install -m 644 include/czmq.h $prefix/include/
         install -m 644 include/czmq_library.h $prefix/include/
@@ -62,8 +80,8 @@ do_install() {
         install -m 644 include/zuuid.h $prefix/include/
     fi
 
-    if ! $(pkg-config --exists libssl); then
-        install -m 755 lib/libssl.so $libdir
+    if [ "$ostype" != "darwin" ] && ! $(pkg-config --exists libssl); then
+        install -m 755 lib/libssl.$libext $libdir
     fi
 
     install -m 755 incli $prefix/bin

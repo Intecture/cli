@@ -13,12 +13,14 @@ set -u
 # Globals
 prefix=""
 libdir=""
+libext=""
 ostype="$(uname -s)"
 make="make"
 
 case "$ostype" in
     Linux)
         prefix="/usr"
+        libext="so"
 
         # When we can statically link successfully, we should be able
         # to produce vendor-agnostic packages.
@@ -38,6 +40,7 @@ case "$ostype" in
         ostype="freebsd"
         prefix="/usr/local"
 		libdir="$prefix/lib"
+        libext="so"
         make="gmake"
         ;;
 
@@ -45,6 +48,7 @@ case "$ostype" in
         ostype="darwin"
         prefix="/usr/local"
 		libdir="$prefix/lib"
+        libext="dylib"
         ;;
 
     *)
@@ -111,12 +115,12 @@ main() {
     cp "$_cargodir/target/release/incli" "$_pkgdir"
 
     # ZeroMQ assets
-    cp "$libdir/libzmq.so" "$_pkgdir/lib/"
+    cp "$libdir/libzmq.$libext" "$_pkgdir/lib/"
     cp "$libdir/pkgconfig/libzmq.pc" "$_pkgdir/lib/pkgconfig/"
     cp "$prefix/include/zmq.h" "$_pkgdir/include/"
 
     # CZMQ assets
-    cp "$libdir/libczmq.so" "$_pkgdir/lib/"
+    cp "$libdir/libczmq.$libext" "$_pkgdir/lib/"
     cp "$libdir/pkgconfig/libczmq.pc" "$_pkgdir/lib/pkgconfig/"
     cp "$prefix/include/czmq.h" "$_pkgdir/include/"
     cp "$prefix/include/czmq_library.h" "$_pkgdir/include/"
@@ -153,11 +157,17 @@ main() {
     cp "$prefix/include/zuuid.h" "$_pkgdir/include/"
 
     # OpenSSL assets
-    cp "$libdir/libssl.so" "$_pkgdir/lib/"
+    # MacOS has deprecated OpenSSL in favour of its own crypto. Best
+    # not to blindly override it!
+    if [ $ostype != "darwin" ]; then
+        cp "$libdir/libssl.$libext" "$_pkgdir/lib/"
+    fi
 
     # Configure installer.sh paths
     sed "s~{{prefix}}~$prefix~" < "$_cargodir/installer.sh" |
-    sed "s~{{libdir}}~$libdir~" > "$_pkgdir/installer.sh"
+    sed "s~{{libdir}}~$libdir~" |
+    sed "s~{{libext}}~$libext~" |
+    sed "s~{{ostype}}~$ostype~" > "$_pkgdir/installer.sh"
     chmod u+x "$_pkgdir/installer.sh"
 
     local _pkgstoredir="$_cargodir/.pkg/$ostype"
