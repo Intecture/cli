@@ -29,7 +29,7 @@ main() {
     cd $_tmpdir
 
     # Install agent
-    $(curl -sSf https://get.intecture.io | sh -s -- -y -d $_tmpdir agent) || exit 1
+    curl -sSf https://get.intecture.io | sh -s -- -y -d $_tmpdir agent || exit 1
 
     # Create agent cert
     cat << \"EOF\" > agent.crt
@@ -41,14 +41,15 @@ EOF
 {{AUTHCERT}}
 EOF
 
-    {{SUDO}} $_installdir/installer.sh install_certs agent.crt auth.crt
-    {{SUDO}} $_installdir/installer.sh amend_conf auth_server \"{{AUTHHOST}}\"
-    {{SUDO}} $_installdir/installer.sh amend_conf auth_update_port {{AUTHPORT}}
-    {{SUDO}} $_installdir/installer.sh start_daemon
+    {{SUDO}} $_tmpdir/agent/installer.sh install_certs agent.crt auth.crt
+    {{SUDO}} $_tmpdir/agent/installer.sh amend_conf auth_server \"{{AUTHHOST}}\"
+    {{SUDO}} $_tmpdir/agent/installer.sh amend_conf auth_update_port {{AUTHPORT}}
+    {{SUDO}} $_tmpdir/agent/installer.sh start_daemon
 
     # Check that inagent is up and running
     sleep 1
-    if ! $(pgrep inagent >/dev/null 2>&1); then
+    local _pid=$(pidof inagent)
+    if [ ! -n $_pid ]; then
         echo \"Failed to start inagent daemon\"
         exit 1
     fi
@@ -133,13 +134,16 @@ EOS", bootstrap_path.trim(), script);
     fn channel_exec(&mut self, cmd: &str) -> Result<String> {
         let mut channel = self.session.channel_session()?;
         channel.exec(cmd)?;
-        let mut s = String::new();
-        channel.read_to_string(&mut s)?;
+        let mut out = String::new();
+        channel.read_to_string(&mut out)?;
 
         if channel.exit_status()? == 0 {
-            Ok(s)
+            Ok(out)
         } else {
-            Err(Error::Bootstrap(s))
+            let mut stderr = channel.stderr();
+            let mut err = String::new();
+            stderr.read_to_string(&mut err)?;
+            Err(Error::Bootstrap(format!("stdout: {}\nstderr: {}", out, err)))
         }
     }
 }
