@@ -14,19 +14,19 @@ set -u
 prefix="{{prefix}}"
 libdir="{{libdir}}"
 libext="{{libext}}"
-ostype="{{ostype}}"
+os="{{os}}"
 
 do_install() {
     local _one=
     local _two=
 
     if ! $(pkg-config --exists libzmq); then
-        if [ "$ostype" = "darwin"]; then
-            $_one="5"
-            $_two=$libext
+        if [ "$os" = "darwin" ]; then
+            _one="5"
+            _two=$libext
         else
-            $_one=$libext
-            $_two="5"
+            _one=$libext
+            _two="5"
         fi
         install -m 755 lib/libzmq.$libext $libdir/libzmq.$_one.$_two
         ln -s $libdir/libzmq.$_one.$_two $libdir/libzmq.$libext
@@ -35,12 +35,12 @@ do_install() {
     fi
 
     if ! $(pkg-config --exists libczmq); then
-        if [ "$ostype" = "darwin"]; then
-            $_one="4"
-            $_two=$libext
+        if [ "$os" = "darwin" ]; then
+            _one="4"
+            _two=$libext
         else
-            $_one=$libext
-            $_two="4"
+            _one=$libext
+            _two="4"
         fi
         install -m 755 lib/libczmq.$libext $libdir/libczmq.$_one.$_two
         ln -s $libdir/libczmq.$_one.$_two $libdir/libczmq.$libext
@@ -80,8 +80,16 @@ do_install() {
         install -m 644 include/zuuid.h $prefix/include/
     fi
 
-    if [ "$ostype" != "darwin" ] && ! $(pkg-config --exists libssl); then
-        install -m 755 lib/libssl.$libext $libdir
+    if [ -f "lib/libssl.$libext" ] && ! $(pkg-config --exists libssl); then
+        case "$os" in
+            "debian" | "ubuntu")
+                install -m 755 lib/libssl.$libext $libdir/x86_64-linux-gnu/libssl.$libext.1.0.0
+                ln -s $libdir/x86_64-linux-gnu/libssl.$libext.1.0.0 $libdir/x86_64-linux-gnu/libssl.$libext
+                ;;
+            *)
+                install -m 755 lib/libssl.$libext $libdir
+                ;;
+        esac
     fi
 
     install -m 755 incli $prefix/bin

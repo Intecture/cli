@@ -14,21 +14,27 @@ set -u
 prefix=""
 libdir=""
 libext=""
-ostype="$(uname -s)"
+os="$(uname -s)"
 make="make"
 
-case "$ostype" in
+case "$os" in
     Linux)
         prefix="/usr"
         libext="so"
 
         # When we can statically link successfully, we should be able
         # to produce vendor-agnostic packages.
-        if [ -f "/etc/redhat-release" ]; then
-            ostype="redhat"
+        if [ -f "/etc/centos-release" ]; then
+            os="centos"
             libdir="$prefix/lib64"
+        elif [ -f "/etc/fedora-release" ]; then
+            os="fedora"
+            libdir="$prefix/lib64"
+        elif [ -f "/etc/lsb-release" ]; then
+            os="ubuntu"
+            libdir="$prefix/lib"
         elif [ -f "/etc/debian_version" ]; then
-            ostype="debian"
+            os="debian"
             libdir="$prefix/lib"
         else
             echo "unsupported Linux flavour" >&2
@@ -37,7 +43,7 @@ case "$ostype" in
         ;;
 
     FreeBSD)
-        ostype="freebsd"
+        os="freebsd"
         prefix="/usr/local"
 		libdir="$prefix/lib"
         libext="so"
@@ -45,14 +51,14 @@ case "$ostype" in
         ;;
 
     Darwin)
-        ostype="darwin"
+        os="darwin"
         prefix="/usr/local"
 		libdir="$prefix/lib"
         libext="dylib"
         ;;
 
     *)
-        echo "unrecognized OS type: $ostype" >&2
+        echo "unrecognized OS type: $os" >&2
         exit 1
         ;;
 esac
@@ -87,16 +93,17 @@ main() {
 
     # OpenSSL dependency
     if ! $(pkg-config --exists openssl); then
-        if [ -f /etc/redhat-release ]; then
-            yum install -y openssl-devel
-        elif [ -f /etc/debian_version ]; then
-            apt-get install -y libssl-dev
-        elif [ $(uname -s) = "freebsd" ]; then
-            pkg install -y openssl-devel
-        else
-            echo "Unsupported OS" >&2
-            exit 1
-        fi
+        case "$os" in
+            "redhat")
+                yum install -y openssl-devel
+                ;;
+            "debian")
+                apt-get install -y libssl-dev
+                ;;
+            "freebsd")
+                pkg install -y openssl-devel
+                ;;
+        esac
     fi
 
     # Build and install project assets
@@ -157,20 +164,27 @@ main() {
     cp "$prefix/include/zuuid.h" "$_pkgdir/include/"
 
     # OpenSSL assets
-    # MacOS has deprecated OpenSSL in favour of its own crypto. Best
-    # not to blindly override it!
-    if [ $ostype != "darwin" ]; then
-        cp "$libdir/libssl.$libext" "$_pkgdir/lib/"
-    fi
+    case "$os" in
+        "debian" | "ubuntu" )
+            cp "$libdir/x86_64-linux-gnu/libssl.$libext" "$_pkgdir/lib/"
+            ;;
+
+        "darwin" )
+            ;;
+
+        *)
+            cp "$libdir/libssl.$libext" "$_pkgdir/lib/"
+            ;;
+    esac
 
     # Configure installer.sh paths
     sed "s~{{prefix}}~$prefix~" < "$_cargodir/installer.sh" |
     sed "s~{{libdir}}~$libdir~" |
     sed "s~{{libext}}~$libext~" |
-    sed "s~{{ostype}}~$ostype~" > "$_pkgdir/installer.sh"
+    sed "s~{{os}}~$os~" > "$_pkgdir/installer.sh"
     chmod u+x "$_pkgdir/installer.sh"
 
-    local _pkgstoredir="$_cargodir/.pkg/$ostype"
+    local _pkgstoredir="$_cargodir/.pkg/$os"
     mkdir -p "$_pkgstoredir"
 
     local _tarball="$_pkgstoredir/$_pkgdir.tar.bz2"
