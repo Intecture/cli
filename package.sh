@@ -11,17 +11,16 @@
 set -u
 
 # Globals
-prefix=""
-libdir=""
-libext=""
+prefix=
+libdir=
+libext=
+pkgconf="pkg-config"
+pkgconfdir=
 os="$(uname -s)"
 make="make"
 
 case "$os" in
     Linux)
-        prefix="/usr"
-        libext="so"
-
         # When we can statically link successfully, we should be able
         # to produce vendor-agnostic packages.
         if [ -f "/etc/centos-release" ]; then
@@ -40,12 +39,18 @@ case "$os" in
             echo "unsupported Linux flavour" >&2
             exit 1
         fi
+
+        prefix="/usr"
+        pkgconfdir="$libdir/pkgconfig"
+        libext="so"
         ;;
 
     FreeBSD)
         os="freebsd"
         prefix="/usr/local"
 		libdir="$prefix/lib"
+        pkgconf="pkgconf"
+        pkgconfdir="$prefix/libdata/pkgconfig"
         libext="so"
         make="gmake"
         ;;
@@ -54,6 +59,7 @@ case "$os" in
         os="darwin"
         prefix="/usr/local"
 		libdir="$prefix/lib"
+        pkgconfdir="$libdir/pkgconfig"
         libext="dylib"
         ;;
 
@@ -69,30 +75,30 @@ main() {
     cd "$_tmpdir"
 
     # ZeroMQ dependency
-    if ! $(pkg-config --exists libzmq) || [ $(pkg-config libzmq --modversion) != "4.2.0" ]; then
+    if ! $($pkgconf --exists libzmq) || [ $($pkgconf libzmq --modversion) != "4.2.0" ]; then
         curl -sSOL https://github.com/zeromq/libzmq/releases/download/v4.2.0/zeromq-4.2.0.tar.gz
         tar zxf zeromq-4.2.0.tar.gz
         cd zeromq-4.2.0
         ./autogen.sh
-        ./configure --prefix=$prefix --libdir=$libdir
+        ./configure --prefix=$prefix --libdir=$libdir --with-pkgconfigdir=$pkgconfdir
         $make
         $make install
         cd ..
     fi
 
     # CZMQ dependency
-    if ! $(pkg-config --exists libczmq) || [ $(pkg-config libczmq --modversion) != "4.0.1" ]; then
+    if ! $($pkgconf --exists libczmq) || [ $($pkgconf libczmq --modversion) != "4.0.1" ]; then
         curl -sSOL https://github.com/zeromq/czmq/releases/download/v4.0.1/czmq-4.0.1.tar.gz
         tar zxf czmq-4.0.1.tar.gz
         cd czmq-4.0.1
-        ./configure --prefix=$prefix --libdir=$libdir
+        ./configure --prefix=$prefix --libdir=$libdir --with-pkgconfigdir=$pkgconfdir
         $make
         $make install
         cd ..
     fi
 
     # OpenSSL dependency
-    if ! $(pkg-config --exists openssl); then
+    if ! $($pkgconf --exists openssl); then
         case "$os" in
             "redhat")
                 yum install -y openssl-devel
@@ -123,12 +129,12 @@ main() {
 
     # ZeroMQ assets
     cp "$libdir/libzmq.$libext" "$_pkgdir/lib/"
-    cp "$libdir/pkgconfig/libzmq.pc" "$_pkgdir/lib/pkgconfig/"
+    cp "$pkgconfdir/libzmq.pc" "$_pkgdir/lib/pkgconfig/"
     cp "$prefix/include/zmq.h" "$_pkgdir/include/"
 
     # CZMQ assets
     cp "$libdir/libczmq.$libext" "$_pkgdir/lib/"
-    cp "$libdir/pkgconfig/libczmq.pc" "$_pkgdir/lib/pkgconfig/"
+    cp "$pkgconfdir/libczmq.pc" "$_pkgdir/lib/pkgconfig/"
     cp "$prefix/include/czmq.h" "$_pkgdir/include/"
     cp "$prefix/include/czmq_library.h" "$_pkgdir/include/"
     cp "$prefix/include/czmq_prelude.h" "$_pkgdir/include/"
@@ -177,10 +183,18 @@ main() {
             ;;
     esac
 
+    # GCC libc++ (FreeBSD only)
+    if [ "$os" = "freebsd" ]; then
+        # XXX Version is hardcoded...bleh!
+        cp "$libdir/gcc49/libstdc++.so.6" "$_pkgdir/lib/"
+    fi
+
     # Configure installer.sh paths
     sed "s~{{prefix}}~$prefix~" < "$_cargodir/installer.sh" |
     sed "s~{{libdir}}~$libdir~" |
     sed "s~{{libext}}~$libext~" |
+    sed "s~{{pkgconf}}~$pkgconf~" |
+    sed "s~{{pkgconfdir}}~$pkgconfdir~" |
     sed "s~{{os}}~$os~" > "$_pkgdir/installer.sh"
     chmod u+x "$_pkgdir/installer.sh"
 

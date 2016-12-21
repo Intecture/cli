@@ -14,13 +14,17 @@ set -u
 prefix="{{prefix}}"
 libdir="{{libdir}}"
 libext="{{libext}}"
+pkgconf="{{pkgconf}}"
+pkgconfdir="{{pkgconfdir}}"
 os="{{os}}"
 
 do_install() {
+    need_cmd $pkgconf
+
     local _one=
     local _two=
 
-    if ! $(pkg-config --exists libzmq); then
+    if ! $($pkgconf --exists libzmq); then
         if [ "$os" = "darwin" ]; then
             _one="5"
             _two=$libext
@@ -30,11 +34,15 @@ do_install() {
         fi
         install -m 755 lib/libzmq.$libext $libdir/libzmq.$_one.$_two
         ln -s $libdir/libzmq.$_one.$_two $libdir/libzmq.$libext
-        install -m 644 lib/pkgconfig/libzmq.pc $libdir/pkgconfig/
+        install -m 644 lib/pkgconfig/libzmq.pc $pkgconfdir
         install -m 644 include/zmq.h $prefix/include/
+
+        if [ "$os" = "freebsd" ]; then
+            install -m 644 lib/libstdc++.so.6 $libdir/
+        fi
     fi
 
-    if ! $(pkg-config --exists libczmq); then
+    if ! $($pkgconf --exists libczmq); then
         if [ "$os" = "darwin" ]; then
             _one="4"
             _two=$libext
@@ -44,7 +52,7 @@ do_install() {
         fi
         install -m 755 lib/libczmq.$libext $libdir/libczmq.$_one.$_two
         ln -s $libdir/libczmq.$_one.$_two $libdir/libczmq.$libext
-        install -m 644 lib/pkgconfig/libczmq.pc $libdir/pkgconfig/
+        install -m 644 lib/pkgconfig/libczmq.pc $pkgconfdir
         install -m 644 include/czmq.h $prefix/include/
         install -m 644 include/czmq_library.h $prefix/include/
         install -m 644 include/czmq_prelude.h $prefix/include/
@@ -80,7 +88,7 @@ do_install() {
         install -m 644 include/zuuid.h $prefix/include/
     fi
 
-    if [ -f "lib/libssl.$libext" ] && ! $(pkg-config --exists libssl); then
+    if [ -f "lib/libssl.$libext" ] && ! $($pkgconf --exists libssl); then
         case "$os" in
             "debian" | "ubuntu")
                 install -m 755 lib/libssl.$libext $libdir/x86_64-linux-gnu/libssl.$libext.1.0.0
@@ -97,6 +105,13 @@ do_install() {
 
 do_uninstall() {
 	rm -f $prefix/bin/incli
+}
+
+need_cmd() {
+    if ! command -v "$1" > /dev/null 2>&1; then
+        echo "need '$1' (command not found)" >&2
+        exit 1
+    fi
 }
 
 main() {
