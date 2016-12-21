@@ -25,7 +25,9 @@ main() {
     # Run any user-defined preinstall scripts
     {{PREINSTALL}}
 
-    local _tmpdir=\"$(mktemp -d 2>/dev/null || ensure mktemp -d -t intecture)\"
+    need_cmd curl
+
+    local _tmpdir=\"$(mktemp -d 2>/dev/null || mktemp -d -t intecture)\"
     cd $_tmpdir
 
     # Install agent
@@ -48,14 +50,21 @@ EOF
 
     # Check that inagent is up and running
     sleep 1
-    local _pid=$(pidof inagent)
+    local _pid=$(pgrep -x inagent)
     if [ ! -n $_pid ]; then
-        echo \"Failed to start inagent daemon\"
+        echo \"Failed to start inagent daemon\" >&2
         exit 1
     fi
 
     # Run any user-defined postinstall scripts
     {{POSTINSTALL}}
+}
+
+need_cmd() {
+    if ! command -v \"$1\" > /dev/null 2>&1; then
+        echo \"need '$1' (command not found)\" >&2
+        exit 1
+    fi
 }
 
 main || exit 1
@@ -121,10 +130,11 @@ impl Bootstrap {
                                      .replace("{{PREINSTALL}}", preinstall_script.unwrap_or(""))
                                      .replace("{{POSTINSTALL}}", postinstall_script.unwrap_or(""))
                                      .replace("{{SUDO}}", if self.is_root { "" } else { "sudo" });
-        let bootstrap_path = self.channel_exec("mktemp 2>/dev/null || mktemp -t in-bootstrap")?;
+        let bootstrap_path = self.channel_exec("/bin/sh -c \"mktemp 2>/dev/null || mktemp -t in-bootstrap\"")?;
+        // Deliberately omit terminating EOS delimiter as it breaks
+        // FreeBSD and works fine without it.
         let cmd = format!("chmod u+x {0} && cat << \"EOS\" > {0}
-{1}
-EOS", bootstrap_path.trim(), script);
+{1}", bootstrap_path.trim(), script);
         self.channel_exec(&cmd)?;
         self.channel_exec(&bootstrap_path)?;
 
@@ -134,6 +144,9 @@ EOS", bootstrap_path.trim(), script);
     fn channel_exec(&mut self, cmd: &str) -> Result<String> {
         let mut channel = self.session.channel_session()?;
         channel.exec(cmd)?;
+        channel.send_eof()?;
+        channel.wait_eof()?;
+
         let mut out = String::new();
         channel.read_to_string(&mut out)?;
 
