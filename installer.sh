@@ -94,10 +94,19 @@ do_install() {
                 install -m 755 lib/libssl.$libext $libdir/x86_64-linux-gnu/libssl.$libext.1.0.0
                 ln -s $libdir/x86_64-linux-gnu/libssl.$libext.1.0.0 $libdir/x86_64-linux-gnu/libssl.$libext
                 ;;
+            "freebsd")
+                install -m 755 lib/libssl.$libext $libdir/libssl.$libext.10
+                ln -s $libdir/libssl.$libext.10 $libdir/libssl.$libext
+                ;;
             *)
                 install -m 755 lib/libssl.$libext $libdir
                 ;;
         esac
+    fi
+
+    if [ "$os" = "freebsd" ]; then
+        install -m 755 lib/libcrypto.$libext $libdir/libcrypto.$libext.10
+        ln -s $libdir/libcrypto.$libext.10 $libdir/libcrypto.$libext
     fi
 
     install -m 755 incli $prefix/bin

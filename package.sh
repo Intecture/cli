@@ -21,6 +21,9 @@ make="make"
 
 case "$os" in
     Linux)
+        prefix="/usr"
+        libext="so"
+
         # When we can statically link successfully, we should be able
         # to produce vendor-agnostic packages.
         if [ -f "/etc/centos-release" ]; then
@@ -40,9 +43,7 @@ case "$os" in
             exit 1
         fi
 
-        prefix="/usr"
         pkgconfdir="$libdir/pkgconfig"
-        libext="so"
         ;;
 
     FreeBSD)
@@ -183,10 +184,13 @@ main() {
             ;;
     esac
 
-    # GCC libc++ (FreeBSD only)
     if [ "$os" = "freebsd" ]; then
+        # GCC libc++ (FreeBSD only)
         # XXX Version is hardcoded...bleh!
         cp "$libdir/gcc49/libstdc++.so.6" "$_pkgdir/lib/"
+
+        # libcrypto
+        cp "$libdir/libcrypto.$libext" "$_pkgdir/lib/"
     fi
 
     # Configure installer.sh paths
