@@ -35,7 +35,7 @@ use std::{env, io};
 use std::path::Path;
 use std::process::exit;
 
-const API_VERSION: &'static str = "{ git = \"https://github.com/intecture/api\" }";
+const API_VERSION: &'static str = "0.3";
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 static USAGE: &'static str = "
