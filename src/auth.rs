@@ -11,9 +11,10 @@ use inapi::ProjectConfig;
 use czmq::{ZCert, ZFrame, ZMsg, ZSock, SocketType};
 use error::Result;
 use project;
+use read_conf;
 use std::{error, fmt};
 use std::path::Path;
-use zdaemon::{ConfigFile, ZMsgExtended};
+use zdaemon::ZMsgExtended;
 
 pub struct Auth {
     sock: ZSock,
@@ -24,7 +25,7 @@ impl Auth {
         let mut buf = project_path.as_ref().to_owned();
 
         buf.push(project::CONFIGNAME);
-        let config = try!(ProjectConfig::load(&buf));
+        let config: ProjectConfig = read_conf(&buf)?;
         buf.pop();
 
         buf.push("auth.crt");
@@ -155,10 +156,10 @@ mod tests {
     use czmq::{ZCert, ZMsg, ZSys};
     use language::Language;
     use project;
+    use write_conf;
     use std::thread::spawn;
     use super::*;
     use tempdir::TempDir;
-    use zdaemon::ConfigFile;
 
     #[test]
     fn test_new() {
@@ -173,7 +174,7 @@ mod tests {
             auth_api_port: 7101,
             auth_update_port: 0,
         };
-        config.save(&path).unwrap();
+        write_conf(&config, &path).unwrap();
         path.pop();
 
         path.push("auth.crt");

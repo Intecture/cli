@@ -12,7 +12,7 @@ use language::{Language, LanguageProject, CProject, PhpProject, RustProject};
 use std::{error, fmt, fs};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use zdaemon::ConfigFile;
+use write_conf;
 
 pub struct Payload;
 
@@ -104,7 +104,7 @@ impl Payload {
             language: language,
             dependencies: None,
         };
-        try!(project_conf.save(&path));
+        write_conf(&project_conf, &path)?;
         path.pop();
 
         let payload = if path.is_relative() {

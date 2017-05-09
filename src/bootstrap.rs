@@ -10,13 +10,13 @@ use auth::Auth;
 use error::{Error, Result};
 use inapi::ProjectConfig;
 use project;
+use read_conf;
 use ssh2::Session;
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::path::Path;
-use zdaemon::ConfigFile;
 
 const BOOTSTRAP_SOURCE: &'static str = "#!/bin/sh
 set -u
@@ -120,7 +120,7 @@ impl Bootstrap {
         fh.read_to_string(&mut auth_cert)?;
 
         // Load project config
-        let conf = try!(ProjectConfig::load(project::CONFIGNAME));
+        let conf: ProjectConfig = read_conf(project::CONFIGNAME)?;
 
         // Install and run bootstrap script
         let script = BOOTSTRAP_SOURCE.replace("{{AGENTCERT}}", &agent_cert.secret())

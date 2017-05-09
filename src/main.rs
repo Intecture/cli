@@ -10,6 +10,8 @@ extern crate czmq;
 extern crate docopt;
 extern crate inapi;
 extern crate rustc_serialize;
+extern crate serde;
+extern crate serde_json;
 extern crate ssh2;
 #[cfg(test)]
 extern crate tempdir;
@@ -31,7 +33,9 @@ use error::Result;
 use language::language_from_str;
 use payload::Payload;
 use project::Project;
-use std::{env, io};
+use serde::{Serialize, Deserialize};
+use std::{env, fs};
+use std::io::{Read, Write, self};
 use std::path::Path;
 use std::process::exit;
 
@@ -219,4 +223,42 @@ fn run(args: &Args) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn read_conf<P: AsRef<Path>, T: Deserialize>(path: P) -> Result<T> {
+    let mut fh = fs::File::open(path.as_ref())?;
+    let mut json = String::new();
+    fh.read_to_string(&mut json)?;
+    Ok(serde_json::from_str(&json)?)
+}
+
+fn write_conf<P: AsRef<Path>, T: Serialize>(conf: T, path: P) -> Result<()> {
+    let json = serde_json::to_string(&conf)?;
+    let mut fh = fs::File::create(path.as_ref())?;
+    fh.write_all(json.as_bytes())?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use inapi::{Language, ProjectConfig};
+    use project;
+    use super::{read_conf, write_conf};
+    use tempdir::TempDir;
+
+    #[test]
+    fn test_rw_conf() {
+        let tmpdir = TempDir::new("test_rw_conf").unwrap();
+        let mut path = tmpdir.path().to_owned();
+
+        path.push(project::CONFIGNAME);
+        let config = ProjectConfig {
+            language: Language::Rust,
+            auth_server: "127.0.0.1".into(),
+            auth_api_port: 7101,
+            auth_update_port: 0,
+        };
+        write_conf(&config, &path).unwrap();
+        let _: ProjectConfig = read_conf(&path).unwrap();
+    }
 }

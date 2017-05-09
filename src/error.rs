@@ -13,6 +13,7 @@ use language::LanguageError;
 use payload::PayloadError;
 use project::ProjectError;
 use rustc_serialize::json::{DecoderError, EncoderError};
+use serde_json;
 use ssh2;
 use std::{error, fmt, io, result, string};
 use std::convert::From;
@@ -32,6 +33,7 @@ pub enum Error {
     Language(LanguageError),
     Payload(PayloadError),
     Project(ProjectError),
+    SerdeJson(serde_json::Error),
     Ssh2(ssh2::Error),
     StringConvert(string::FromUtf8Error),
     ZDaemon(zdaemon::Error),
@@ -50,6 +52,7 @@ impl fmt::Display for Error {
             Error::Language(ref e) => write!(f, "Language error: {}", e),
             Error::Payload(ref e) => write!(f, "Payload error: {}", e),
             Error::Project(ref e) => write!(f, "Project error: {}", e),
+            Error::SerdeJson(ref e) => write!(f, "Serde JSON error: {}", e),
             Error::Ssh2(ref e) => write!(f, "SSH2 error: {}", e),
             Error::StringConvert(ref e) => write!(f, "String conversion error: {}", e),
             Error::ZDaemon(ref e) => write!(f, "ZDaemon error: {}", e),
@@ -70,6 +73,7 @@ impl error::Error for Error {
             Error::Language(ref e) => e.description(),
             Error::Payload(ref e) => e.description(),
             Error::Project(ref e) => e.description(),
+            Error::SerdeJson(ref e) => e.description(),
             Error::Ssh2(ref e) => e.description(),
             Error::StringConvert(ref e) => e.description(),
             Error::ZDaemon(ref e) => e.description(),
@@ -88,6 +92,7 @@ impl error::Error for Error {
             Error::Language(ref e) => Some(e),
             Error::Payload(ref e) => Some(e),
             Error::Project(ref e) => Some(e),
+            Error::SerdeJson(ref e) => Some(e),
             Error::Ssh2(ref e) => Some(e),
             Error::StringConvert(ref e) => Some(e),
             Error::ZDaemon(ref e) => Some(e),
@@ -146,6 +151,12 @@ impl From<PayloadError> for Error {
 impl From<ProjectError> for Error {
     fn from(err: ProjectError) -> Error {
         Error::Project(err)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Error {
+        Error::SerdeJson(err)
     }
 }
 

@@ -103,7 +103,7 @@ impl RustProject {
         // Add intecture-api as project dependency
         buf.push("Cargo.toml");
         let mut fh = try!(fs::OpenOptions::new().append(true).open(&buf));
-        try!(fh.write_all(format!("intecture-api = {}", API_VERSION).as_bytes()));
+        try!(fh.write_all(format!("intecture-api = \"{}\"", API_VERSION).as_bytes()));
         buf.pop();
 
         // Write source code to main.rs

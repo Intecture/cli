@@ -9,11 +9,11 @@
 use error::Result;
 use inapi::ProjectConfig;
 use language::{Language, LanguageProject, CProject, PhpProject, RustProject};
+use {read_conf, write_conf};
 use std::{error, fmt, fs};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, ExitStatus};
-use zdaemon::ConfigFile;
 
 pub const CONFIGNAME: &'static str = "project.json";
 
@@ -28,7 +28,7 @@ impl Project {
         // Load config
         let mut buf = path.as_ref().to_owned();
         buf.push(CONFIGNAME);
-        let conf = try!(ProjectConfig::load(&buf));
+        let conf: ProjectConfig = read_conf(&buf)?;
 
         Ok(Project {
             name: try!(try!(buf.file_name().ok_or(ProjectError::InvalidPath))
@@ -83,7 +83,7 @@ impl Project {
             auth_api_port: 7101,
             auth_update_port: 7102,
         };
-        try!(project_conf.save(&path));
+        write_conf(&project_conf, &path)?;
         path.pop();
 
         println!("Remember to copy your user certificate to {}/user.crt.
