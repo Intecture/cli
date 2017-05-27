@@ -88,7 +88,17 @@ do_install() {
         install -m 644 include/zuuid.h $prefix/include/
     fi
 
-    if [ -f "lib/libssl.$libext" ] && ! $($pkgconf --exists libssl); then
+    if [ "$os" = "darwin" ]; then
+        mkdir -p "$prefix/opt/openssl@1.1/lib"
+        install -m 444 lib/libssl.$libext "$prefix/opt/openssl@1.1/lib/libssl.1.1.$libext"
+        ln -s "$prefix/opt/openssl@1.1/lib/libssl.1.1.$libext" "$prefix/opt/openssl@1.1/lib/libssl.$libext"
+
+        install -m 444 lib/libcrypto.$libext "$prefix/opt/openssl@1.1/lib/libcrypto.1.1.$libext"
+        ln -s "$prefix/opt/openssl@1.1/lib/libcrypto.1.1.$libext" "$prefix/opt/openssl@1.1/lib/libcrypto.$libext"
+
+        mkdir -p "$prefix/Cellar/openssl@1.1/1.1.0e/lib/"
+        ln -s "$prefix/opt/openssl@1.1/lib/libcrypto.1.1.$libext" "$prefix/Cellar/openssl@1.1/1.1.0e/lib/"
+    elif ! $($pkgconf --exists libssl); then
         case "$os" in
             "debian" | "ubuntu")
                 install -m 755 lib/libssl.$libext $libdir/x86_64-linux-gnu/libssl.$libext.1.0.0

@@ -110,6 +110,9 @@ main() {
             "freebsd")
                 pkg install -y openssl-devel
                 ;;
+            "darwin")
+                brew install openssl@1.1
+                ;;
         esac
     fi
 
@@ -177,6 +180,8 @@ main() {
             ;;
 
         "darwin" )
+            cp "$prefix/opt/openssl@1.1/lib/libssl.$libext" "$_pkgdir/lib/"
+            cp "$prefix/opt/openssl@1.1/lib/libcrypto.$libext" "$_pkgdir/lib/"
             ;;
 
         *)
