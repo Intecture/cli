@@ -6,34 +6,44 @@
 // https://www.tldrlegal.com/l/mpl-2.0>. This file may not be copied,
 // modified, or distributed except according to those terms.
 
+use czmq::{ZCert, ZFrame, ZMsg, ZSock, SocketType};
 use error::Result;
 use inapi::ProjectConfig;
 use language::{Language, LanguageProject, CProject, PhpProject, RustProject};
 use {read_conf, write_conf};
 use std::{error, fmt, fs};
 use std::io::Write;
-use std::path::Path;
-use std::process::{Command, ExitStatus};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 pub const CONFIGNAME: &'static str = "project.json";
 
 #[derive(Debug)]
 pub struct Project {
+    path: PathBuf,
     pub name: String,
-    pub language: Language,
+    conf: ProjectConfig,
 }
 
 impl Project {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Project> {
-        // Load config
         let mut buf = path.as_ref().to_owned();
+
+        // Load config
         buf.push(CONFIGNAME);
         let conf: ProjectConfig = read_conf(&buf)?;
+        buf.pop();
+
+        let name = buf.file_name()
+                      .ok_or(ProjectError::InvalidPath)?
+                      .to_str()
+                      .ok_or(ProjectError::InvalidPath)?
+                      .into();
 
         Ok(Project {
-            name: try!(try!(buf.file_name().ok_or(ProjectError::InvalidPath))
-                               .to_str().ok_or(ProjectError::InvalidPath)).into(),
-            language: conf.language,
+            path: buf,
+            name: name,
+            conf: conf,
         })
     }
 
@@ -82,6 +92,7 @@ impl Project {
             auth_server: "auth.example.com".into(),
             auth_api_port: 7101,
             auth_update_port: 7102,
+            build_server: None,
         };
         write_conf(&project_conf, &path)?;
         path.pop();
@@ -89,18 +100,76 @@ impl Project {
         println!("Remember to copy your user certificate to {}/user.crt.
 If you do not have a user certificate, obtain one from your administrator.", path.to_str().unwrap());
 
+        let name = path.file_name()
+                       .ok_or(ProjectError::InvalidPath)?
+                       .to_str()
+                       .ok_or(ProjectError::InvalidPath)?
+                       .into();
+
         Ok(Project {
-            name: try!(try!(path.file_name().ok_or(ProjectError::InvalidPath))
-                                .to_str().ok_or(ProjectError::InvalidPath)).into(),
-            language: project_conf.language,
+            path: path,
+            name: name,
+            conf: project_conf,
         })
     }
 
-    pub fn run(&self, args: &[&str]) -> Result<ExitStatus> {
-        match self.language {
-            Language::Php => PhpProject::run(args),
-            Language::C => CProject::run(args),
-            Language::Rust => RustProject::run(args),
+    pub fn run(&self, args: &[&str], local: bool) -> Result<Option<i32>> {
+        match self.conf.build_server {
+            Some(ref hostname) if !local => {
+                let mut buf = self.path.clone();
+
+                buf.push("build.crt");
+                let build_cert = try!(ZCert::load(buf.to_str().unwrap()));
+                buf.pop();
+
+                buf.push("user.crt");
+                let user_cert = try!(ZCert::load(buf.to_str().unwrap()));
+                buf.pop();
+
+                let mut sock = ZSock::new(SocketType::DEALER);
+                user_cert.apply(&mut sock);
+                sock.set_curve_serverkey(build_cert.public_txt());
+                sock.set_sndtimeo(Some(1000));
+                try!(sock.connect(&format!("tcp://{}", hostname)));
+
+                let msg = ZMsg::new();
+                msg.addstr("RUN")?;
+                for arg in args {
+                    msg.addstr(arg)?;
+                }
+                msg.send(&mut sock)?;
+
+                let mut err = false;
+
+                loop {
+                    let reply = ZFrame::recv(&mut sock)?;
+                    match reply.data()? {
+                        Ok(ref data) if data == "OK" => break,
+                        Ok(ref data) if data == "ERR" => err = true,
+                        Ok(data) => {
+                            print!("{}", data);
+                            if err {
+                                break;
+                            }
+                        },
+                        Err(bytes) => println!("Non-UTF8 bytes: {:?}", bytes),
+                    }
+                }
+
+                if err {
+                    Ok(Some(1))
+                } else {
+                    Ok(Some(0))
+                }
+            }
+            _ => {
+                let status = match self.conf.language {
+                    Language::Php => PhpProject::run(args)?,
+                    Language::C => CProject::run(args)?,
+                    Language::Rust => RustProject::run(args)?,
+                };
+                Ok(status.code())
+            }
         }
     }
 }

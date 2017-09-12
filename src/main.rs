@@ -46,7 +46,7 @@ static USAGE: &'static str = "
 Intecture CLI.
 
 Usage:
-  incli run [<arg>...]
+  incli run [--local] [<arg>...]
   incli project init <name> <lang>
   incli payload init <name> <lang>
   incli payload build [<names>...]
@@ -61,6 +61,7 @@ Usage:
 Options:
   -h --help                 Show this screen.
   -i <identity_file>        Path to SSH private key.
+  --local                   Ignore build server and run project locally.
   -m <preinstall_script>    Script to run before attempting to install Agent.
   -n <postinstall_script>   Script to run after successfully installing Agent.
   -p <ssh_port>             SSH port number.
@@ -88,6 +89,7 @@ struct Args {
     flag_h: bool,
     flag_help: bool,
     flag_i: Option<String>,
+    flag_local: bool,
     flag_m: Option<String>,
     flag_n: Option<String>,
     flag_p: Option<u32>,
@@ -123,10 +125,10 @@ fn run(args: &Args) -> Result<()> {
     else if args.cmd_run {
         let project = try!(Project::load(&mut env::current_dir().unwrap()));
         let args_deref: Vec<&str> = args.arg_arg.iter().map(AsRef::as_ref).collect();
-        let status = try!(project.run(&args_deref));
-
-        if !status.success() {
-            exit(status.code().unwrap_or(1));
+        match project.run(&args_deref, args.flag_local)? {
+            Some(code) if code != 0 => exit(code),
+            Some(_) => (),
+            None => exit(1),
         }
     }
     else if args.cmd_project && args.cmd_init {
@@ -257,6 +259,7 @@ mod tests {
             auth_server: "127.0.0.1".into(),
             auth_api_port: 7101,
             auth_update_port: 0,
+            build_server: None,
         };
         write_conf(&config, &path).unwrap();
         let _: ProjectConfig = read_conf(&path).unwrap();

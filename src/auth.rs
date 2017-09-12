@@ -173,6 +173,7 @@ mod tests {
             auth_server: "127.0.0.1".into(),
             auth_api_port: 7101,
             auth_update_port: 0,
+            build_server: None,
         };
         write_conf(&config, &path).unwrap();
         path.pop();
