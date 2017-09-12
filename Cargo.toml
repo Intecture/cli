@@ -28,3 +28,4 @@ tempdir = "0.3"
 [[bin]]
 
 name = "incli"
+path = "src/main.rs"
