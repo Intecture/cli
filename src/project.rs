@@ -147,12 +147,12 @@ If you do not have a user certificate, obtain one from your administrator.", pat
                         Ok(ref data) if data == "OK" => break,
                         Ok(ref data) if data == "ERR" => err = true,
                         Ok(data) => {
-                            print!("{}", data);
+                            println!("{}", data.trim());
                             if err {
                                 break;
                             }
                         },
-                        Err(bytes) => println!("Non-UTF8 bytes: {:?}", bytes),
+                        Err(bytes) => println!("{}", String::from_utf8_lossy(&bytes).trim()),
                     }
                 }
 
